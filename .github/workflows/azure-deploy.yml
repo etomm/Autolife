@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: autolife-app    # Set this to your Azure Web App name
+  AZURE_WEBAPP_NAME: autolife    # Set this to your Azure Web App name
   AZURE_WEBAPP_PACKAGE_PATH: './publish'
   DOTNET_VERSION: '8.0.x'
 
