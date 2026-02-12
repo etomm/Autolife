@@ -28,12 +28,23 @@ jobs:
     - name: Build solution
       run: dotnet build --configuration Release --no-restore
 
+    - name: Check for test projects
+      id: check-tests
+      run: |
+        if dotnet sln list | grep -i test; then
+          echo "has_tests=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_tests=false" >> $GITHUB_OUTPUT
+          echo "No test projects found in solution - skipping tests"
+        fi
+
     - name: Run tests
+      if: steps.check-tests.outputs.has_tests == 'true'
       run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
     - name: Code coverage report
+      if: steps.check-tests.outputs.has_tests == 'true'
       uses: codecov/codecov-action@v4
-      if: always()
       with:
         files: '**/coverage.cobertura.xml'
         fail_ci_if_error: false
