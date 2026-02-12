@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Autolife.Core\Autolife.Core.csproj" />
+    <ProjectReference Include="..\Autolife.AI\Autolife.AI.csproj" />
+    <ProjectReference Include="..\Autolife.Storage\Autolife.Storage.csproj" />
+  </ItemGroup>
+
+</Project>
