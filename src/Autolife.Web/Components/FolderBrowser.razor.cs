@@ -63,6 +63,15 @@ public partial class FolderBrowser : IDisposable
     private bool secondaryShowEllipsis = false;
     private string secondaryRootPrefix = "";
 
+    private async Task Log(string message)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("breadcrumbMeasure.log", message);
+        }
+        catch { }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         isWindows = OperatingSystem.IsWindows();
@@ -97,8 +106,8 @@ public partial class FolderBrowser : IDisposable
 
         try
         {
-            Console.WriteLine("=== BREADCRUMB CALCULATION START ===");
-            Console.WriteLine($"Primary visible: {primaryVisible}");
+            await Log("=== BREADCRUMB CALCULATION START ===");
+            await Log($"Primary visible: {primaryVisible}");
             
             await Task.Delay(10);
 
@@ -106,27 +115,27 @@ public partial class FolderBrowser : IDisposable
 
             // Measure container width (fixed by path box)
             var containerWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContainerWidth");
-            Console.WriteLine($"Container width: {containerWidth}px");
+            await Log($"Container width: {containerWidth}px");
 
             if (_disposed) return;
 
             // Measure content width from HIDDEN breadcrumb (being prepared)
             var contentWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContentWidth");
-            Console.WriteLine($"Content width: {contentWidth}px");
+            await Log($"Content width: {contentWidth}px");
             
             if (_disposed) return;
 
             // Get references to which is which
             var hiddenSegments = primaryVisible ? secondaryPathSegments : primaryPathSegments;
-            Console.WriteLine($"Hidden breadcrumb has {hiddenSegments.Count} segments");
+            await Log($"Hidden breadcrumb has {hiddenSegments.Count} segments");
             for (int i = 0; i < hiddenSegments.Count; i++)
             {
-                Console.WriteLine($"  Segment {i}: {hiddenSegments[i].segment}");
+                await Log($"  Segment {i}: {hiddenSegments[i].segment}");
             }
 
             if (containerWidth <= 0 || contentWidth <= 0)
             {
-                Console.WriteLine("⚠️ Invalid measurements, showing everything");
+                await Log("⚠️ Invalid measurements, showing everything");
                 // No calculation possible, just show everything
                 if (primaryVisible)
                 {
@@ -139,17 +148,17 @@ public partial class FolderBrowser : IDisposable
                     primaryVisibleLeadingSegments = primaryPathSegments.ToList();
                 }
                 SwapBreadcrumbs();
-                Console.WriteLine("=== BREADCRUMB CALCULATION END (invalid measurements) ===");
+                await Log("=== BREADCRUMB CALCULATION END (invalid measurements) ===");
                 return;
             }
 
             var overflow = contentWidth - containerWidth;
-            Console.WriteLine($"Overflow: {overflow}px (container: {containerWidth}px, content: {contentWidth}px)");
+            await Log($"Overflow: {overflow}px (container: {containerWidth}px, content: {contentWidth}px)");
 
             // Small margin for safety
             if (overflow <= 10)
             {
-                Console.WriteLine("✅ Everything fits, no ellipsis needed");
+                await Log("✅ Everything fits, no ellipsis needed");
                 // Everything fits
                 if (primaryVisible)
                 {
@@ -164,11 +173,11 @@ public partial class FolderBrowser : IDisposable
             }
             else
             {
-                Console.WriteLine($"❌ Content overflows by {overflow}px, need ellipsis");
+                await Log($"❌ Content overflows by {overflow}px, need ellipsis");
                 // Need to add ellipsis and hide segments
                 if (hiddenSegments.Count <= 1)
                 {
-                    Console.WriteLine("Only 1 segment, showing it even if it overflows");
+                    await Log("Only 1 segment, showing it even if it overflows");
                     // Only one segment - show it even if it overflows
                     if (primaryVisible)
                     {
@@ -183,7 +192,7 @@ public partial class FolderBrowser : IDisposable
                 }
                 else
                 {
-                    Console.WriteLine($"Multiple segments ({hiddenSegments.Count}), measuring individual widths...");
+                    await Log($"Multiple segments ({hiddenSegments.Count}), measuring individual widths...");
                     // Measure individual segment widths from the hidden breadcrumb
                     var segmentWidths = new List<double>();
                     
@@ -194,7 +203,7 @@ public partial class FolderBrowser : IDisposable
                         var width = await JS.InvokeAsync<double>("breadcrumbMeasure.getSegmentWidth", i);
                         
                         segmentWidths.Add(width);
-                        Console.WriteLine($"  Segment {i} '{hiddenSegments[i].segment}': {width}px");
+                        await Log($"  Segment {i} '{hiddenSegments[i].segment}': {width}px");
                     }
 
                     if (_disposed) return;
@@ -205,7 +214,7 @@ public partial class FolderBrowser : IDisposable
                     var accumulatedRemoval = 0.0;
                     var keepCount = 0;
 
-                    Console.WriteLine($"Target removal: {targetRemoval}px (overflow {overflow}px + ellipsis {ellipsisWidth}px)");
+                    await Log($"Target removal: {targetRemoval}px (overflow {overflow}px + ellipsis {ellipsisWidth}px)");
 
                     // Remove segments from the beginning (after root) until we've removed enough
                     for (int i = 0; i < segmentWidths.Count; i++)
@@ -213,12 +222,12 @@ public partial class FolderBrowser : IDisposable
                         if (accumulatedRemoval < targetRemoval)
                         {
                             accumulatedRemoval += segmentWidths[i];
-                            Console.WriteLine($"  Removing segment {i}, accumulated: {accumulatedRemoval}px");
+                            await Log($"  Removing segment {i}, accumulated: {accumulatedRemoval}px");
                         }
                         else
                         {
                             keepCount = i;
-                            Console.WriteLine($"  Stopping at segment {i}, keeping {keepCount} segments");
+                            await Log($"  Stopping at segment {i}, keeping {keepCount} segments");
                             break;
                         }
                     }
@@ -226,10 +235,10 @@ public partial class FolderBrowser : IDisposable
                     // If we went through all segments and still need more removal, keep 0
                     if (keepCount == 0 && accumulatedRemoval < targetRemoval)
                     {
-                        Console.WriteLine("  Removed all segments, keeping 0");
+                        await Log("  Removed all segments, keeping 0");
                     }
 
-                    Console.WriteLine($"✂️ Final decision: show ellipsis=true, keep {keepCount} leading segments out of {hiddenSegments.Count - 1}");
+                    await Log($"✂️ Final decision: show ellipsis=true, keep {keepCount} leading segments out of {hiddenSegments.Count - 1}");
 
                     if (primaryVisible)
                     {
@@ -237,7 +246,7 @@ public partial class FolderBrowser : IDisposable
                         secondaryVisibleLeadingSegments = keepCount > 0 
                             ? secondaryPathSegments.Take(keepCount).ToList() 
                             : new List<(string, string)>();
-                        Console.WriteLine($"Secondary: ellipsis={secondaryShowEllipsis}, visible segments={secondaryVisibleLeadingSegments.Count}");
+                        await Log($"Secondary: ellipsis={secondaryShowEllipsis}, visible segments={secondaryVisibleLeadingSegments.Count}");
                     }
                     else
                     {
@@ -245,25 +254,25 @@ public partial class FolderBrowser : IDisposable
                         primaryVisibleLeadingSegments = keepCount > 0 
                             ? primaryPathSegments.Take(keepCount).ToList() 
                             : new List<(string, string)>();
-                        Console.WriteLine($"Primary: ellipsis={primaryShowEllipsis}, visible segments={primaryVisibleLeadingSegments.Count}");
+                        await Log($"Primary: ellipsis={primaryShowEllipsis}, visible segments={primaryVisibleLeadingSegments.Count}");
                     }
                 }
             }
 
             if (!_disposed)
             {
-                Console.WriteLine("🔄 Swapping breadcrumbs...");
+                await Log("🔄 Swapping breadcrumbs...");
                 SwapBreadcrumbs();
-                Console.WriteLine($"After swap - Primary visible: {primaryVisible}");
-                Console.WriteLine($"Primary: ellipsis={primaryShowEllipsis}, segments={primaryPathSegments.Count}, visible={primaryVisibleLeadingSegments.Count}");
-                Console.WriteLine($"Secondary: ellipsis={secondaryShowEllipsis}, segments={secondaryPathSegments.Count}, visible={secondaryVisibleLeadingSegments.Count}");
+                await Log($"After swap - Primary visible: {primaryVisible}");
+                await Log($"Primary: ellipsis={primaryShowEllipsis}, segments={primaryPathSegments.Count}, visible={primaryVisibleLeadingSegments.Count}");
+                await Log($"Secondary: ellipsis={secondaryShowEllipsis}, segments={secondaryPathSegments.Count}, visible={secondaryVisibleLeadingSegments.Count}");
             }
-            Console.WriteLine("=== BREADCRUMB CALCULATION END ===");
+            await Log("=== BREADCRUMB CALCULATION END ===");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"🔴 Breadcrumb calculation error: {ex.Message}");
-            Console.WriteLine($"Stack: {ex.StackTrace}");
+            await Log($"🔴 Breadcrumb calculation error: {ex.Message}");
+            await Log($"Stack: {ex.StackTrace}");
             if (!_disposed)
             {
                 // On error, just show everything in the hidden breadcrumb
