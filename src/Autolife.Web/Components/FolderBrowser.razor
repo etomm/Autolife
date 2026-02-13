@@ -8,29 +8,63 @@
     </div>
 
     <div class="browser-body">
+        <!-- Current Path Display - Fixed Height -->
+        <div class="current-path-container">
+            @if (string.IsNullOrEmpty(currentPath))
+            {
+                <div class="path-placeholder">
+                    <i class="bi bi-folder2-open"></i>
+                    <span>Choose a drive or network location first</span>
+                </div>
+            }
+            else
+            {
+                <div class="current-path">
+                    <div class="breadcrumb-nav">
+                        @if (!string.IsNullOrEmpty(pathPrefix))
+                        {
+                            <button type="button" class="breadcrumb-prefix" @onclick="ShowRoots">
+                                @pathPrefix
+                            </button>
+                            <span class="breadcrumb-separator">/</span>
+                        }
+                        @foreach (var (segment, path) in GetPathSegments())
+                        {
+                            var capturedPath = path;
+                            <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                @segment
+                            </button>
+                            <span class="breadcrumb-separator">/</span>
+                        }
+                    </div>
+                    @if (canCreateFolder)
+                    {
+                        <button type="button" class="btn-new-folder" @onclick="ShowCreateFolderDialog" title="New Folder">
+                            <i class="bi bi-folder-plus"></i>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Error Display - Inline -->
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> @errorMessage
-            </div>
-        }
-
-        <!-- Current Path Display -->
-        <div class="current-path">
-            <div class="breadcrumb-nav">
-                @if (!string.IsNullOrEmpty(currentPath))
+            <div class="error-inline">
+                <i class="bi bi-exclamation-circle"></i>
+                <span>@errorSummary</span>
+                @if (!string.IsNullOrEmpty(errorDetails))
                 {
-                    @foreach (var (segment, path) in GetPathSegments())
-                    {
-                        var capturedPath = path;
-                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                            @segment
-                        </button>
-                        <span class="breadcrumb-separator">/</span>
-                    }
+                    <button type="button" class="btn-error-details" @onclick="ToggleErrorDetails" title="Show details">
+                        <i class="bi bi-question-circle"></i>
+                    </button>
                 }
             </div>
-        </div>
+            @if (showErrorDetails)
+            {
+                <div class="error-details">@errorDetails</div>
+            }
+        }
 
         <!-- Root Selection -->
         @if (showRootSelection)
@@ -38,16 +72,23 @@
             <div class="folder-list">
                 @if (isLoading)
                 {
-                    <div class="loading">Loading roots...</div>
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <span>Loading...</span>
+                    </div>
                 }
                 else
                 {
                     @foreach (var root in roots)
                     {
                         var capturedRoot = root;
-                        <div class="folder-item" @onclick="async () => await SelectRoot(capturedRoot.Path)">
-                            <i class="bi bi-hdd"></i>
+                        <div class="folder-item @(capturedRoot.Type == "Network" ? "network-item" : "")" @onclick="async () => await SelectRoot(capturedRoot.Path)">
+                            <i class="bi @(capturedRoot.Type == "Network" ? "bi-hdd-network" : "bi-hdd")"></i>
                             <span class="folder-name">@capturedRoot.Name</span>
+                            @if (capturedRoot.Type == "Network")
+                            {
+                                <span class="badge-network">Network</span>
+                            }
                             <i class="bi bi-chevron-right"></i>
                         </div>
                     }
@@ -60,7 +101,10 @@
             <div class="folder-list">
                 @if (isLoading)
                 {
-                    <div class="loading">Loading directories...</div>
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <span>Loading...</span>
+                    </div>
                 }
                 else
                 {
@@ -76,12 +120,12 @@
                     {
                         var capturedDir = dir;
                         <div class="folder-item @(selectedPath == capturedDir.Path ? "selected" : "") @(capturedDir.IsAccessible ? "" : "disabled")"
-                             @onclick="async () => await SelectDirectory(capturedDir.Path)">
+                             @onclick="async () => { if (capturedDir.IsAccessible) await SelectDirectory(capturedDir.Path); }">
                             <i class="bi @(capturedDir.IsAccessible ? "bi-folder" : "bi-folder-x")"></i>
                             <span class="folder-name">@capturedDir.Name</span>
                             @if (!capturedDir.IsAccessible)
                             {
-                                <span class="access-denied">Access Denied</span>
+                                <span class="access-denied"><i class="bi bi-lock"></i> Access Denied</span>
                             }
                         </div>
                     }
@@ -96,19 +140,6 @@
                 }
             </div>
         }
-
-        <!-- Actions -->
-        <div class="browser-actions">
-            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ShowCreateFolderDialog">
-                <i class="bi bi-folder-plus"></i> New Folder
-            </button>
-            @if (!showRootSelection)
-            {
-                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ShowRoots">
-                    <i class="bi bi-hdd"></i> Change Root
-                </button>
-            }
-        </div>
     </div>
 
     <div class="browser-footer">
@@ -127,10 +158,27 @@
     <div class="modal-backdrop-inner" @onclick="CloseCreateDialog"></div>
     <div class="create-folder-dialog" @onclick:stopPropagation="true">
         <h6>Create New Folder</h6>
-        <input type="text" class="form-control" @bind="newFolderName" placeholder="Folder name" @onkeyup="HandleCreateFolderKeyUp" />
+        <input type="text" class="form-control @(createError ? "is-invalid" : "")" @bind="newFolderName" placeholder="Folder name" @onkeyup="HandleCreateFolderKeyUp" />
+        @if (createError)
+        {
+            <div class="error-inline small">
+                <i class="bi bi-exclamation-circle"></i>
+                <span>@createErrorMessage</span>
+            </div>
+        }
         <div class="dialog-buttons">
             <button type="button" class="btn btn-sm btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
-            <button type="button" class="btn btn-sm btn-primary" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">Create</button>
+            <button type="button" class="btn btn-sm @(createError ? "btn-danger" : "btn-primary")" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">
+                @if (createError)
+                {
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Failed</span>
+                }
+                else
+                {
+                    <span>Create</span>
+                }
+            </button>
         </div>
     </div>
 }
@@ -146,14 +194,25 @@
     private string currentPath = "";
     private string parentPath = "";
     private string selectedPath = "";
+    private string pathPrefix = "";
     private bool isLoading = false;
     private bool showRootSelection = true;
     private bool showCreateDialog = false;
+    private bool canCreateFolder = false;
     private string newFolderName = "";
     private string errorMessage = "";
+    private string errorSummary = "";
+    private string errorDetails = "";
+    private bool showErrorDetails = false;
+    private bool createError = false;
+    private string createErrorMessage = "";
+    private bool isWindows = false;
 
     protected override async Task OnInitializedAsync()
     {
+        // Detect OS
+        isWindows = OperatingSystem.IsWindows();
+        
         await LoadRoots();
         
         if (!string.IsNullOrEmpty(InitialPath) && Directory.Exists(InitialPath))
@@ -165,7 +224,7 @@
     private async Task LoadRoots()
     {
         isLoading = true;
-        errorMessage = "";
+        ClearError();
         try
         {
             var response = await Http.GetFromJsonAsync<List<RootInfo>>("/api/filesystem/roots");
@@ -173,7 +232,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to load drives: {ex.Message}";
+            SetError("Failed to load drives", ex.Message);
         }
         finally
         {
@@ -192,14 +251,17 @@
         showRootSelection = true;
         currentPath = "";
         selectedPath = "";
+        pathPrefix = "";
         directories.Clear();
+        canCreateFolder = false;
+        ClearError();
         StateHasChanged();
     }
 
     private async Task NavigateToPath(string path)
     {
         isLoading = true;
-        errorMessage = "";
+        ClearError();
         showRootSelection = false;
         StateHasChanged();
 
@@ -212,16 +274,49 @@
                 parentPath = response.ParentPath ?? "";
                 directories = response.Directories;
                 selectedPath = currentPath;
+                canCreateFolder = response.CanCreateFolder;
+                
+                // Set prefix
+                UpdatePathPrefix(currentPath);
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to browse directory: {ex.Message}";
+            SetError("Cannot access directory", ex.Message);
         }
         finally
         {
             isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private void UpdatePathPrefix(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            pathPrefix = "";
+            return;
+        }
+
+        // Check if network path (UNC)
+        if (isWindows && path.StartsWith("\\\\"))
+        {
+            pathPrefix = "Network";
+        }
+        // Check if drive letter
+        else if (isWindows && path.Length >= 2 && path[1] == ':')
+        {
+            pathPrefix = $"Drive {path.Substring(0, 2).ToUpper()}";
+        }
+        // Unix root
+        else if (path.StartsWith("/"))
+        {
+            pathPrefix = "Root";
+        }
+        else
+        {
+            pathPrefix = "";
         }
     }
 
@@ -236,13 +331,34 @@
         var segments = new List<(string, string)>();
         if (string.IsNullOrEmpty(currentPath)) return segments;
 
-        var parts = currentPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = "";
+        var path = currentPath;
+        
+        // Remove prefix for segment building
+        if (isWindows && path.Length >= 2 && path[1] == ':')
+        {
+            // Skip drive letter (already in prefix)
+            path = path.Substring(2).TrimStart('\\', '/');
+        }
+        else if (isWindows && path.StartsWith("\\\\"))
+        {
+            // Skip UNC prefix
+            path = path.Substring(2).TrimStart('\\', '/');
+        }
+        else if (path.StartsWith("/"))
+        {
+            // Skip root slash
+            path = path.Substring(1);
+        }
+
+        if (string.IsNullOrEmpty(path)) return segments;
+
+        var parts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        var accumulated = currentPath.Substring(0, currentPath.Length - path.Length);
 
         foreach (var part in parts)
         {
             accumulated += part + Path.DirectorySeparatorChar;
-            segments.Add((part, accumulated));
+            segments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
         return segments;
@@ -252,12 +368,16 @@
     {
         showCreateDialog = true;
         newFolderName = "";
+        createError = false;
+        createErrorMessage = "";
         StateHasChanged();
     }
 
     private void CloseCreateDialog()
     {
         showCreateDialog = false;
+        createError = false;
+        createErrorMessage = "";
         StateHasChanged();
     }
 
@@ -277,6 +397,9 @@
     {
         if (string.IsNullOrWhiteSpace(newFolderName)) return;
 
+        createError = false;
+        createErrorMessage = "";
+
         try
         {
             var response = await Http.PostAsJsonAsync("/api/filesystem/create", new
@@ -292,15 +415,38 @@
             }
             else
             {
-                errorMessage = "Failed to create folder";
+                createError = true;
+                createErrorMessage = "Cannot create folder here";
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error: {ex.Message}";
+            createError = true;
+            createErrorMessage = "Creation failed";
             StateHasChanged();
         }
+    }
+
+    private void SetError(string summary, string details)
+    {
+        errorSummary = summary;
+        errorDetails = details;
+        errorMessage = summary;
+        showErrorDetails = false;
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+        errorSummary = "";
+        errorDetails = "";
+        showErrorDetails = false;
+    }
+
+    private void ToggleErrorDetails()
+    {
+        showErrorDetails = !showErrorDetails;
     }
 
     private async Task ConfirmSelection()
@@ -336,6 +482,7 @@
         public string CurrentPath { get; set; } = "";
         public string? ParentPath { get; set; }
         public List<DirectoryInfo> Directories { get; set; } = new();
+        public bool CanCreateFolder { get; set; }
     }
 }
 
@@ -345,9 +492,9 @@
         flex-direction: column;
         height: 600px;
         max-height: 80vh;
-        background: var(--bg-secondary);
+        background: white;
         border-radius: 12px;
-        box-shadow: 0 4px 24px var(--shadow);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
         position: relative;
         z-index: 1051;
         pointer-events: auto;
@@ -358,12 +505,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid #e9ecef;
     }
 
     .browser-header h5 {
         margin: 0;
-        color: var(--text-primary);
+        color: #2c3e50;
     }
 
     .btn-close {
@@ -371,13 +518,13 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: var(--text-secondary);
+        color: #6c757d;
         padding: 0.25rem 0.5rem;
         line-height: 1;
     }
 
     .btn-close:hover {
-        color: var(--text-primary);
+        color: #2c3e50;
     }
 
     .btn-close::before {
@@ -393,24 +540,66 @@
         gap: 1rem;
     }
 
+    .current-path-container {
+        min-height: 60px;
+        max-height: 60px;
+    }
+
+    .path-placeholder {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 2px dashed #dee2e6;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .path-placeholder i {
+        font-size: 1.5rem;
+    }
+
     .current-path {
         padding: 0.75rem;
-        background: var(--bg-tertiary);
+        background: #f8f9fa;
         border-radius: 8px;
-        border: 1px solid var(--border-color);
+        border: 1px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
     }
 
     .breadcrumb-nav {
+        flex: 1;
         display: flex;
         align-items: center;
         flex-wrap: wrap;
         gap: 0.25rem;
+        min-height: 32px;
+    }
+
+    .breadcrumb-prefix {
+        background: #667eea;
+        color: white;
+        border: none;
+        cursor: pointer;
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        transition: background 0.2s;
+        font-weight: 500;
+    }
+
+    .breadcrumb-prefix:hover {
+        background: #5568d3;
     }
 
     .breadcrumb-item {
         background: none;
         border: none;
-        color: var(--accent-color);
+        color: #667eea;
         cursor: pointer;
         padding: 0.25rem 0.5rem;
         border-radius: 4px;
@@ -418,17 +607,93 @@
     }
 
     .breadcrumb-item:hover {
-        background: var(--bg-secondary);
+        background: #e9ecef;
     }
 
     .breadcrumb-separator {
-        color: var(--text-tertiary);
+        color: #adb5bd;
+    }
+
+    .btn-new-folder {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-new-folder:hover {
+        background: #218838;
+    }
+
+    .btn-new-folder i {
+        font-size: 1.1rem;
+    }
+
+    .error-inline {
+        padding: 0.75rem 1rem;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 6px;
+        color: #721c24;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .error-inline.small {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+    }
+
+    .error-inline i {
+        font-size: 1.1rem;
+    }
+
+    .btn-error-details {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid #721c24;
+        color: #721c24;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-error-details:hover {
+        background: #721c24;
+        color: white;
+    }
+
+    .error-details {
+        padding: 0.75rem;
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 6px;
+        color: #856404;
+        font-size: 0.85rem;
+        font-family: monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
     }
 
     .folder-list {
         flex: 1;
         overflow-y: auto;
-        border: 1px solid var(--border-color);
+        border: 1px solid #dee2e6;
         border-radius: 8px;
     }
 
@@ -439,16 +704,16 @@
         padding: 0.75rem 1rem;
         cursor: pointer;
         transition: background 0.2s;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid #e9ecef;
     }
 
-    .folder-item:hover {
-        background: var(--bg-tertiary);
+    .folder-item:hover:not(.disabled) {
+        background: #f8f9fa;
     }
 
     .folder-item.selected {
         background: rgba(102, 126, 234, 0.1);
-        border-left: 3px solid var(--accent-color);
+        border-left: 3px solid #667eea;
     }
 
     .folder-item.disabled {
@@ -456,38 +721,71 @@
         cursor: not-allowed;
     }
 
+    .folder-item.network-item i {
+        color: #17a2b8;
+    }
+
     .folder-item i {
         font-size: 1.25rem;
-        color: var(--accent-color);
+        color: #667eea;
+        min-width: 24px;
     }
 
     .folder-name {
         flex: 1;
-        color: var(--text-primary);
+        color: #2c3e50;
+    }
+
+    .badge-network {
+        background: #17a2b8;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
     }
 
     .access-denied {
-        color: #e53e3e;
+        color: #dc3545;
         font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
     }
 
     .empty-folder {
         text-align: center;
         padding: 3rem;
-        color: var(--text-secondary);
+        color: #6c757d;
     }
 
     .empty-folder i {
         font-size: 3rem;
         margin-bottom: 1rem;
-        color: var(--text-tertiary);
+        color: #adb5bd;
     }
 
-    .browser-actions {
+    .loading {
         display: flex;
-        gap: 0.5rem;
-        padding-top: 0.5rem;
-        border-top: 1px solid var(--border-color);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        color: #6c757d;
+        gap: 1rem;
+    }
+
+    .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #667eea;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
 
     .browser-footer {
@@ -495,12 +793,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-top: 1px solid var(--border-color);
+        border-top: 1px solid #dee2e6;
     }
 
     .selected-path-display {
         flex: 1;
-        color: var(--text-secondary);
+        color: #6c757d;
         font-size: 0.9rem;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -511,12 +809,6 @@
     .button-group {
         display: flex;
         gap: 0.5rem;
-    }
-
-    .loading {
-        text-align: center;
-        padding: 2rem;
-        color: var(--text-secondary);
     }
 
     .modal-backdrop-inner {
@@ -535,17 +827,17 @@
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 1060;
-        background: var(--bg-secondary);
+        background: white;
         padding: 1.5rem;
         border-radius: 12px;
-        box-shadow: 0 4px 24px var(--shadow);
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
         min-width: 300px;
         pointer-events: auto;
     }
 
     .create-folder-dialog h6 {
         margin-bottom: 1rem;
-        color: var(--text-primary);
+        color: #2c3e50;
     }
 
     .dialog-buttons {
@@ -555,15 +847,17 @@
         margin-top: 1rem;
     }
 
-    .alert {
-        padding: 0.75rem 1rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
+    .is-invalid {
+        border-color: #dc3545 !important;
     }
 
-    .alert-danger {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
+    .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+
+    .btn-danger:hover {
+        background-color: #c82333;
+        border-color: #bd2130;
     }
 </style>
