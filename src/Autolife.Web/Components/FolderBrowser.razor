@@ -20,7 +20,7 @@
             else
             {
                 <div class="current-path">
-                    <div class="breadcrumb-nav">
+                    <div class="breadcrumb-nav" @ref="breadcrumbNavRef">
                         <!-- Left arrow to return to root selection -->
                         <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
                             <i class="bi bi-chevron-left"></i>
@@ -35,13 +35,13 @@
                             </button>
                         }
                         
-                        <!-- Path segments with ellipsis in correct position -->
+                        <!-- Path segments with dynamic ellipsis -->
                         @if (pathSegments.Count > 0)
                         {
                             @if (showEllipsis)
                             {
-                                <!-- Show leading segments if any -->
-                                @foreach (var (segment, path) in leadingSegments)
+                                <!-- Show visible leading segments -->
+                                @foreach (var (segment, path) in visibleLeadingSegments)
                                 {
                                     var capturedPath = path;
                                     <span class="breadcrumb-separator">/</span>
@@ -54,19 +54,19 @@
                                 <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one folder">
                                     <span>..</span>
                                 </button>
-                                <!-- Show trailing segments -->
-                                @foreach (var (segment, path) in trailingSegments)
+                                <!-- Always show the last segment -->
+                                @if (lastSegment.segment != null)
                                 {
-                                    var capturedPath = path;
+                                    var capturedPath = lastSegment.path;
                                     <span class="breadcrumb-separator">/</span>
                                     <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                        @segment
+                                        @lastSegment.segment
                                     </button>
                                 }
                             }
                             else
                             {
-                                <!-- Show all segments when path is short -->
+                                <!-- Show all segments when they fit -->
                                 @foreach (var (segment, path) in pathSegments)
                                 {
                                     var capturedPath = path;
@@ -293,12 +293,13 @@
     private bool showErrorPopup = false;
     private bool showFullStackTrace = false;
     private ElementReference createInputRef;
+    private ElementReference breadcrumbNavRef;
     private System.Threading.Timer? hideErrorTimer;
 
-    // Path truncation support
+    // Path truncation support - dynamic width-based
     private List<(string segment, string path)> pathSegments = new();
-    private List<(string segment, string path)> leadingSegments = new();
-    private List<(string segment, string path)> trailingSegments = new();
+    private List<(string segment, string path)> visibleLeadingSegments = new();
+    private (string segment, string path) lastSegment;
     private bool showEllipsis = false;
 
     protected override async Task OnInitializedAsync()
@@ -311,6 +312,14 @@
         if (!string.IsNullOrEmpty(InitialPath) && Directory.Exists(InitialPath))
         {
             await NavigateToPath(InitialPath);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!showRootSelection && pathSegments.Count > 0)
+        {
+            await CalculateDynamicTruncation();
         }
     }
 
@@ -370,8 +379,8 @@
         directories.Clear();
         canCreateFolder = false;
         pathSegments.Clear();
-        leadingSegments.Clear();
-        trailingSegments.Clear();
+        visibleLeadingSegments.Clear();
+        lastSegment = (null, null);
         showEllipsis = false;
         showCreateInline = false;
         ClearError();
@@ -405,12 +414,12 @@
                 parentPath = response.ParentPath ?? "";
                 directories = response.Directories;
                 selectedPath = currentPath;
-                canCreateFolder = response.CanCreateFolder; // Backend must check write access
+                canCreateFolder = response.CanCreateFolder;
                 
                 // Set root prefix and path
                 UpdateRootInfo(currentPath);
-                // Calculate segments for breadcrumb
-                CalculatePathSegments();
+                // Build path segments
+                BuildPathSegments();
             }
         }
         catch (Exception ex)
@@ -437,7 +446,6 @@
         if (isWindows && path.StartsWith("\\\\"))
         {
             rootPrefix = "Network";
-            // Find first two segments for UNC root (\\server\share)
             var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2)
             {
@@ -471,11 +479,11 @@
         }
     }
 
-    private void CalculatePathSegments()
+    private void BuildPathSegments()
     {
         pathSegments.Clear();
-        leadingSegments.Clear();
-        trailingSegments.Clear();
+        visibleLeadingSegments.Clear();
+        lastSegment = (null, null);
         showEllipsis = false;
 
         if (string.IsNullOrEmpty(currentPath)) return;
@@ -485,16 +493,13 @@
         // Remove root prefix for segment building
         if (isWindows && path.Length >= 2 && path[1] == ':')
         {
-            // Skip drive letter (already in rootPrefix)
             path = path.Substring(2).TrimStart('\\', '/');
         }
         else if (isWindows && path.StartsWith("\\\\"))
         {
-            // Skip UNC prefix - remove \\server\share part
             var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length > 2)
             {
-                // Skip server and share, keep rest
                 path = string.Join("\\", parts.Skip(2));
             }
             else
@@ -504,13 +509,11 @@
         }
         else if (path.StartsWith("/"))
         {
-            // Skip root slash
             path = path.Substring(1);
         }
 
         if (string.IsNullOrEmpty(path))
         {
-            // At root, no segments
             return;
         }
 
@@ -523,40 +526,128 @@
             pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        // Determine when to show ellipsis
-        // Show ellipsis only when we have more than 5 segments
-        const int maxSegmentsBeforeEllipsis = 5;
-        const int leadingCount = 1;  // Show first 1 segment before ..
-        const int trailingCount = 2; // Show last 2 segments after ..
-        
-        if (pathSegments.Count > maxSegmentsBeforeEllipsis)
+        // Initial state: show all segments
+        visibleLeadingSegments = pathSegments.ToList();
+        if (pathSegments.Count > 0)
         {
-            showEllipsis = true;
-            // Split: show first segment, .., last 2 segments
-            // Example: C: / Program Files (x86) / .. / SetupCache
-            leadingSegments = pathSegments.Take(leadingCount).ToList();
-            trailingSegments = pathSegments.Skip(pathSegments.Count - trailingCount).ToList();
+            lastSegment = pathSegments[^1];
         }
-        else
+    }
+
+    private async Task CalculateDynamicTruncation()
+    {
+        try
         {
-            showEllipsis = false;
-            leadingSegments.Clear();
-            trailingSegments.Clear();
+            // Get available width for breadcrumbs
+            var availableWidth = await JS.InvokeAsync<double>("eval", 
+                "document.querySelector('.breadcrumb-nav')?.offsetWidth || 0");
+            
+            if (availableWidth == 0 || pathSegments.Count == 0) return;
+
+            // Reserve space for fixed elements: back button (32px) + separator (8px) + root (variable) + new folder button (60px) + margins
+            var reservedWidth = 32 + 8 + 60 + 50; // Approximate
+            
+            // Measure root prefix width
+            if (!string.IsNullOrEmpty(rootPrefix))
+            {
+                var rootWidth = await MeasureTextWidth(rootPrefix);
+                reservedWidth += rootWidth + 20; // Add separator space
+            }
+
+            // Reserve space for ellipsis button (36px) + separator (8px)
+            var ellipsisWidth = 36 + 8;
+            
+            // Reserve space for last segment (always visible)
+            var lastSegmentWidth = await MeasureTextWidth(lastSegment.segment);
+            reservedWidth += lastSegmentWidth + 20;
+
+            var remainingWidth = availableWidth - reservedWidth;
+
+            // Calculate how many leading segments fit
+            var fittingSegments = new List<(string segment, string path)>();
+            var accumulatedWidth = 0.0;
+
+            for (int i = 0; i < pathSegments.Count - 1; i++) // Exclude last segment
+            {
+                var segmentWidth = await MeasureTextWidth(pathSegments[i].segment);
+                var totalWidth = segmentWidth + 20; // Include separator and padding
+
+                if (accumulatedWidth + totalWidth <= remainingWidth)
+                {
+                    fittingSegments.Add(pathSegments[i]);
+                    accumulatedWidth += totalWidth;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // If not all segments fit, show ellipsis
+            if (fittingSegments.Count < pathSegments.Count - 1)
+            {
+                showEllipsis = true;
+                visibleLeadingSegments = fittingSegments;
+                
+                // If no segments fit, still try to show at least the first one if space allows
+                if (fittingSegments.Count == 0 && pathSegments.Count > 1)
+                {
+                    visibleLeadingSegments = pathSegments.Take(1).ToList();
+                }
+            }
+            else
+            {
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
+            }
+
+            StateHasChanged();
+        }
+        catch
+        {
+            // Fallback: if JS measurement fails, use simple heuristic
+            if (pathSegments.Count > 3)
+            {
+                showEllipsis = true;
+                visibleLeadingSegments = pathSegments.Take(1).ToList();
+            }
+            else
+            {
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task<double> MeasureTextWidth(string text)
+    {
+        try
+        {
+            return await JS.InvokeAsync<double>("eval", $@"
+                (function() {{
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    context.font = '500 14px system-ui';
+                    return context.measureText('{text.Replace("'", "\\'").Replace("\\", "\\\\")}').width;
+                }})()
+            ");
+        }
+        catch
+        {
+            // Fallback: estimate based on character count
+            return text.Length * 8;
         }
     }
 
     private async Task NavigateUpOneFolder()
     {
         // When clicking .., navigate to the first hidden segment
-        // (the segment right after the leading segments)
-        if (showEllipsis && pathSegments.Count > leadingSegments.Count + trailingSegments.Count)
+        var firstHiddenIndex = visibleLeadingSegments.Count;
+        if (showEllipsis && firstHiddenIndex < pathSegments.Count - 1)
         {
-            var targetIndex = leadingSegments.Count;
-            if (targetIndex < pathSegments.Count)
-            {
-                var targetSegment = pathSegments[targetIndex];
-                await NavigateToPath(targetSegment.path);
-            }
+            var targetSegment = pathSegments[firstHiddenIndex];
+            await NavigateToPath(targetSegment.path);
         }
     }
 
@@ -573,7 +664,6 @@
         ClearCreateError();
         StateHasChanged();
         
-        // Focus the input
         try
         {
             await JS.InvokeVoidAsync("eval", "setTimeout(() => { const input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
@@ -619,7 +709,7 @@
             {
                 showCreateInline = false;
                 newFolderName = "";
-                await NavigateToPath(currentPath); // Refresh
+                await NavigateToPath(currentPath);
             }
             else
             {
@@ -674,7 +764,6 @@
 
     private void StartHideErrorTimer()
     {
-        // Small delay to allow mouse to move to popup
         hideErrorTimer = new System.Threading.Timer(_ =>
         {
             InvokeAsync(() =>
@@ -825,7 +914,6 @@
         position: relative;
     }
 
-    /* Match padding and height between placeholder and current-path */
     .path-placeholder {
         padding: 0.75rem;
         background: var(--bg-tertiary);
@@ -866,7 +954,6 @@
         min-height: 32px;
     }
 
-    /* Left arrow button - rectangular, tall like add folder button */
     .breadcrumb-back {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
@@ -893,7 +980,6 @@
         font-size: 1rem;
     }
 
-    /* Ellipsis button - rectangular, tall like add folder button */
     .breadcrumb-ellipsis {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
@@ -917,7 +1003,6 @@
         border-color: var(--accent-color);
     }
 
-    /* Regular breadcrumb items - for root and folders */
     .breadcrumb-item {
         background: none;
         border: none;
@@ -943,7 +1028,6 @@
         flex-shrink: 0;
     }
 
-    /* Match button heights */
     .btn-new-folder {
         background: #28a745;
         color: white;
@@ -968,7 +1052,6 @@
         font-size: 1.1rem;
     }
 
-    /* Inline folder creation */
     .inline-create-container {
         display: flex;
         align-items: center;
@@ -1033,7 +1116,6 @@
         cursor: not-allowed;
     }
 
-    /* Create error overlay - expands over other elements */
     .create-error-overlay {
         position: absolute;
         top: 100%;
@@ -1099,7 +1181,6 @@
         font-size: 0.75rem;
     }
 
-    /* Error details popup - positioned near question mark */
     .error-details-popup {
         position: fixed;
         top: 50%;
