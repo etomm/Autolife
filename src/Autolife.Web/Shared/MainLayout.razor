@@ -8,7 +8,7 @@
 <div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")">
     <div class="sidebar">
         <div class="sidebar-header">
-            <button class="hamburger-btn" @onclick="ToggleSidebar">
+            <button class="hamburger-btn" @onclick="ToggleSidebar" type="button">
                 <i class="bi bi-list"></i>
             </button>
             @if (!sidebarCollapsed)
@@ -239,6 +239,19 @@
         box-sizing: border-box;
     }
 
+    /* Remove default focus outline globally for mouse users */
+    button:focus:not(:focus-visible),
+    a:focus:not(:focus-visible) {
+        outline: none;
+    }
+
+    /* Keep focus visible for keyboard users */
+    button:focus-visible,
+    a:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.5);
+        outline-offset: 2px;
+    }
+
     .app-container {
         display: flex;
         min-height: 100vh;
@@ -283,16 +296,27 @@
         justify-content: center;
         font-size: 1.5rem;
         transition: background 0.2s;
+        outline: none !important;
     }
 
     .hamburger-btn:hover {
         background: rgba(255,255,255,0.2);
     }
 
+    .hamburger-btn:focus {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .hamburger-btn:active {
+        background: rgba(255,255,255,0.25);
+    }
+
     .app-title {
         font-size: 1.5rem;
         font-weight: 600;
         white-space: nowrap;
+        outline: none;
     }
 
     .sidebar-nav {
@@ -321,6 +345,10 @@
     .nav-item:hover {
         background: rgba(255,255,255,0.1);
         color: white;
+    }
+
+    .nav-item:focus {
+        outline: none;
     }
 
     .nav-item.active {
