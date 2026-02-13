@@ -26,40 +26,55 @@
                             <i class="bi bi-chevron-left"></i>
                         </button>
                         
-                        <!-- Root button (Drive or Network) -->
+                        <!-- Root button (Drive or Network) - styled as regular breadcrumb -->
                         @if (!string.IsNullOrEmpty(rootPrefix))
                         {
-                            <button type="button" class="breadcrumb-root" @onclick="NavigateToRoot" title="Go to root">
+                            <span class="breadcrumb-separator">/</span>
+                            <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
                                 @rootPrefix
                             </button>
                         }
                         
-                        <!-- Path segments with ellipsis -->
+                        <!-- Path segments with ellipsis in correct position -->
                         @if (pathSegments.Count > 0)
                         {
-                            @if (showEllipsis && hiddenSegments.Count > 0)
+                            @if (showEllipsis)
                             {
-                                <span class="breadcrumb-separator">/</span>
-                                @foreach (var (segment, path) in hiddenSegments)
+                                <!-- Show leading segments if any -->
+                                @foreach (var (segment, path) in leadingSegments)
                                 {
                                     var capturedPath = path;
+                                    <span class="breadcrumb-separator">/</span>
                                     <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                                         @segment
                                     </button>
-                                    <span class="breadcrumb-separator">/</span>
                                 }
+                                <!-- Show .. to represent hidden segments -->
+                                <span class="breadcrumb-separator">/</span>
                                 <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one folder">
                                     <span>..</span>
                                 </button>
+                                <!-- Show trailing segments -->
+                                @foreach (var (segment, path) in trailingSegments)
+                                {
+                                    var capturedPath = path;
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                        @segment
+                                    </button>
+                                }
                             }
-                            
-                            @foreach (var (segment, path) in visibleSegments)
+                            else
                             {
-                                var capturedPath = path;
-                                <span class="breadcrumb-separator">/</span>
-                                <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                    @segment
-                                </button>
+                                <!-- Show all segments when path is short -->
+                                @foreach (var (segment, path) in pathSegments)
+                                {
+                                    var capturedPath = path;
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                        @segment
+                                    </button>
+                                }
                             }
                         }
                     </div>
@@ -282,8 +297,8 @@
 
     // Path truncation support
     private List<(string segment, string path)> pathSegments = new();
-    private List<(string segment, string path)> visibleSegments = new();
-    private List<(string segment, string path)> hiddenSegments = new();
+    private List<(string segment, string path)> leadingSegments = new();
+    private List<(string segment, string path)> trailingSegments = new();
     private bool showEllipsis = false;
 
     protected override async Task OnInitializedAsync()
@@ -355,8 +370,8 @@
         directories.Clear();
         canCreateFolder = false;
         pathSegments.Clear();
-        visibleSegments.Clear();
-        hiddenSegments.Clear();
+        leadingSegments.Clear();
+        trailingSegments.Clear();
         showEllipsis = false;
         showCreateInline = false;
         ClearError();
@@ -390,7 +405,7 @@
                 parentPath = response.ParentPath ?? "";
                 directories = response.Directories;
                 selectedPath = currentPath;
-                canCreateFolder = response.CanCreateFolder; // Backend verifies write access
+                canCreateFolder = response.CanCreateFolder; // Backend must check write access
                 
                 // Set root prefix and path
                 UpdateRootInfo(currentPath);
@@ -459,8 +474,8 @@
     private void CalculatePathSegments()
     {
         pathSegments.Clear();
-        visibleSegments.Clear();
-        hiddenSegments.Clear();
+        leadingSegments.Clear();
+        trailingSegments.Clear();
         showEllipsis = false;
 
         if (string.IsNullOrEmpty(currentPath)) return;
@@ -495,7 +510,7 @@
 
         if (string.IsNullOrEmpty(path))
         {
-            visibleSegments = pathSegments;
+            // At root, no segments
             return;
         }
 
@@ -508,34 +523,40 @@
             pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        // Calculate visible vs hidden segments
-        const int maxVisibleSegments = 3; // Show last 3 segments
-        const int minHiddenToShow = 1; // Show at least 1 segment before ..
+        // Determine when to show ellipsis
+        // Show ellipsis only when we have more than 5 segments
+        const int maxSegmentsBeforeEllipsis = 5;
+        const int leadingCount = 1;  // Show first 1 segment before ..
+        const int trailingCount = 2; // Show last 2 segments after ..
         
-        if (pathSegments.Count > maxVisibleSegments + minHiddenToShow)
+        if (pathSegments.Count > maxSegmentsBeforeEllipsis)
         {
             showEllipsis = true;
-            // Show first minHiddenToShow segments, then .., then last maxVisibleSegments
-            hiddenSegments = pathSegments.Take(minHiddenToShow).ToList();
-            visibleSegments = pathSegments.Skip(pathSegments.Count - maxVisibleSegments).ToList();
+            // Split: show first segment, .., last 2 segments
+            // Example: C: / Program Files (x86) / .. / SetupCache
+            leadingSegments = pathSegments.Take(leadingCount).ToList();
+            trailingSegments = pathSegments.Skip(pathSegments.Count - trailingCount).ToList();
         }
         else
         {
             showEllipsis = false;
-            hiddenSegments.Clear();
-            visibleSegments = pathSegments;
+            leadingSegments.Clear();
+            trailingSegments.Clear();
         }
     }
 
     private async Task NavigateUpOneFolder()
     {
-        // When clicking ellipsis (..), navigate to the last segment before the visible segments
-        // This is the first hidden segment after the displayed hidden segments
-        if (showEllipsis && pathSegments.Count > visibleSegments.Count + hiddenSegments.Count)
+        // When clicking .., navigate to the first hidden segment
+        // (the segment right after the leading segments)
+        if (showEllipsis && pathSegments.Count > leadingSegments.Count + trailingSegments.Count)
         {
-            var targetIndex = hiddenSegments.Count;
-            var targetSegment = pathSegments[targetIndex];
-            await NavigateToPath(targetSegment.path);
+            var targetIndex = leadingSegments.Count;
+            if (targetIndex < pathSegments.Count)
+            {
+                var targetSegment = pathSegments[targetIndex];
+                await NavigateToPath(targetSegment.path);
+            }
         }
     }
 
@@ -845,19 +866,21 @@
         min-height: 32px;
     }
 
-    /* Left arrow button - back to root selection */
+    /* Left arrow button - rectangular, tall like add folder button */
     .breadcrumb-back {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
         color: var(--text-primary);
         cursor: pointer;
-        padding: 0.375rem 0.5rem;
+        padding: 0 0.5rem;
         border-radius: 6px;
         transition: all 0.2s;
         display: flex;
         align-items: center;
+        justify-content: center;
         flex-shrink: 0;
-        height: 32px;
+        height: 38px;
+        width: 32px;
     }
 
     .breadcrumb-back:hover {
@@ -870,37 +893,22 @@
         font-size: 1rem;
     }
 
-    /* Root button (Drive letter or Network) */
-    .breadcrumb-root {
-        background: var(--accent-color);
-        color: white;
-        border: none;
-        cursor: pointer;
-        padding: 0.375rem 0.75rem;
-        border-radius: 6px;
-        transition: background 0.2s;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        flex-shrink: 0;
-        height: 32px;
-        margin-left: 0.25rem;
-    }
-
-    .breadcrumb-root:hover {
-        background: var(--accent-hover);
-    }
-
+    /* Ellipsis button - rectangular, tall like add folder button */
     .breadcrumb-ellipsis {
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
         color: var(--accent-color);
         cursor: pointer;
-        padding: 0.25rem 0.75rem;
-        border-radius: 4px;
+        padding: 0 0.5rem;
+        border-radius: 6px;
         transition: all 0.2s;
         font-weight: bold;
         flex-shrink: 0;
+        height: 38px;
+        width: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .breadcrumb-ellipsis:hover {
@@ -909,6 +917,7 @@
         border-color: var(--accent-color);
     }
 
+    /* Regular breadcrumb items - for root and folders */
     .breadcrumb-item {
         background: none;
         border: none;
@@ -922,6 +931,7 @@
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
+        font-weight: 500;
     }
 
     .breadcrumb-item:hover {
@@ -947,7 +957,7 @@
         transition: background 0.2s;
         white-space: nowrap;
         flex-shrink: 0;
-        height: 38px; /* Explicit height */
+        height: 38px;
     }
 
     .btn-new-folder:hover {
@@ -980,7 +990,7 @@
         font-size: 0.9rem;
         width: 150px;
         transition: border-color 0.2s;
-        height: 38px; /* Match button height */
+        height: 38px;
     }
 
     .inline-create-container.error .inline-create-input {
@@ -1003,7 +1013,7 @@
         display: flex;
         align-items: center;
         transition: all 0.2s;
-        height: 38px; /* Match button height */
+        height: 38px;
     }
 
     .btn-inline-create:hover:not(:disabled) {
@@ -1106,7 +1116,7 @@
         max-height: 400px;
         overflow-y: auto;
         animation: popupAppear 0.2s ease;
-        pointer-events: auto; /* Ensure popup can receive mouse events */
+        pointer-events: auto;
     }
 
     .error-details-popup.expanded {
