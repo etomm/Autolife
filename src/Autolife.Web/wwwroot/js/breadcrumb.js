@@ -22,5 +22,9 @@ window.breadcrumbMeasure = {
         }
         
         return segment.offsetWidth + sepWidth;
+    },
+    
+    log: function(message) {
+        console.log('[BREADCRUMB] ' + message);
     }
 };
