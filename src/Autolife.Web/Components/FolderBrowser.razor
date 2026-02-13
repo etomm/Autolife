@@ -55,7 +55,7 @@
                                     <span>..</span>
                                 </button>
                                 <!-- Always show the last segment -->
-                                @if (lastSegment.segment != null)
+                                @if (!string.IsNullOrEmpty(lastSegment.segment))
                                 {
                                     var capturedPath = lastSegment.path;
                                     <span class="breadcrumb-separator">/</span>
@@ -264,10 +264,17 @@
 </div>
 
 @code {
-    [Parameter] public string Title { get; set; } = "Select Folder";
-    [Parameter] public string InitialPath { get; set; } = "";
-    [Parameter] public EventCallback<string> OnPathSelected { get; set; }
-    [Parameter] public EventCallback OnCancelled { get; set; }
+    [Parameter]
+    public string Title { get; set; } = "Select Folder";
+    
+    [Parameter]
+    public string InitialPath { get; set; } = "";
+    
+    [Parameter]
+    public EventCallback<string> OnPathSelected { get; set; }
+    
+    [Parameter]
+    public EventCallback OnCancelled { get; set; }
 
     private List<RootInfo> roots = new();
     private List<DirectoryInfo> directories = new();
@@ -296,10 +303,10 @@
     private ElementReference breadcrumbNavRef;
     private System.Threading.Timer? hideErrorTimer;
 
-    // Path truncation support - dynamic width-based
+    // Path truncation support - will use simple fallback for now
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleLeadingSegments = new();
-    private (string segment, string path) lastSegment;
+    private (string segment, string path) lastSegment = ("", "");
     private bool showEllipsis = false;
 
     protected override async Task OnInitializedAsync()
@@ -317,10 +324,17 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!showRootSelection && pathSegments.Count > 0)
+        if (!showRootSelection && pathSegments.Count > 0 && !showEllipsis)
         {
-            await CalculateDynamicTruncation();
+            // Simple heuristic: if more than 4 segments, truncate
+            if (pathSegments.Count > 4)
+            {
+                showEllipsis = true;
+                visibleLeadingSegments = pathSegments.Take(1).ToList();
+                StateHasChanged();
+            }
         }
+        await Task.CompletedTask;
     }
 
     private async Task LoadRoots()
@@ -354,7 +368,6 @@
         // Special handling for Network root
         if (path == "")
         {
-            // Network locations - try to browse UNC root
             try
             {
                 await NavigateToPath("\\\\");
@@ -380,7 +393,7 @@
         canCreateFolder = false;
         pathSegments.Clear();
         visibleLeadingSegments.Clear();
-        lastSegment = (null, null);
+        lastSegment = ("", "");
         showEllipsis = false;
         showCreateInline = false;
         ClearError();
@@ -416,9 +429,7 @@
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                // Set root prefix and path
                 UpdateRootInfo(currentPath);
-                // Build path segments
                 BuildPathSegments();
             }
         }
@@ -442,7 +453,6 @@
             return;
         }
 
-        // Check if network path (UNC)
         if (isWindows && path.StartsWith("\\\\"))
         {
             rootPrefix = "Network";
@@ -460,13 +470,11 @@
                 rootPath = "\\\\";
             }
         }
-        // Check if drive letter
         else if (isWindows && path.Length >= 2 && path[1] == ':')
         {
             rootPrefix = path.Substring(0, 2).ToUpper();
             rootPath = rootPrefix + "\\";
         }
-        // Unix root
         else if (path.StartsWith("/"))
         {
             rootPrefix = "/";
@@ -483,14 +491,13 @@
     {
         pathSegments.Clear();
         visibleLeadingSegments.Clear();
-        lastSegment = (null, null);
+        lastSegment = ("", "");
         showEllipsis = false;
 
         if (string.IsNullOrEmpty(currentPath)) return;
 
         var path = currentPath;
         
-        // Remove root prefix for segment building
         if (isWindows && path.Length >= 2 && path[1] == ':')
         {
             path = path.Substring(2).TrimStart('\\', '/');
@@ -512,10 +519,7 @@
             path = path.Substring(1);
         }
 
-        if (string.IsNullOrEmpty(path))
-        {
-            return;
-        }
+        if (string.IsNullOrEmpty(path)) return;
 
         var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         var accumulated = currentPath.Substring(0, currentPath.Length - path.Length);
@@ -526,7 +530,6 @@
             pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        // Initial state: show all segments
         visibleLeadingSegments = pathSegments.ToList();
         if (pathSegments.Count > 0)
         {
@@ -534,115 +537,8 @@
         }
     }
 
-    private async Task CalculateDynamicTruncation()
-    {
-        try
-        {
-            // Get available width for breadcrumbs
-            var availableWidth = await JS.InvokeAsync<double>("eval", 
-                "document.querySelector('.breadcrumb-nav')?.offsetWidth || 0");
-            
-            if (availableWidth == 0 || pathSegments.Count == 0) return;
-
-            // Reserve space for fixed elements: back button (32px) + separator (8px) + root (variable) + new folder button (60px) + margins
-            var reservedWidth = 32 + 8 + 60 + 50; // Approximate
-            
-            // Measure root prefix width
-            if (!string.IsNullOrEmpty(rootPrefix))
-            {
-                var rootWidth = await MeasureTextWidth(rootPrefix);
-                reservedWidth += rootWidth + 20; // Add separator space
-            }
-
-            // Reserve space for ellipsis button (36px) + separator (8px)
-            var ellipsisWidth = 36 + 8;
-            
-            // Reserve space for last segment (always visible)
-            var lastSegmentWidth = await MeasureTextWidth(lastSegment.segment);
-            reservedWidth += lastSegmentWidth + 20;
-
-            var remainingWidth = availableWidth - reservedWidth;
-
-            // Calculate how many leading segments fit
-            var fittingSegments = new List<(string segment, string path)>();
-            var accumulatedWidth = 0.0;
-
-            for (int i = 0; i < pathSegments.Count - 1; i++) // Exclude last segment
-            {
-                var segmentWidth = await MeasureTextWidth(pathSegments[i].segment);
-                var totalWidth = segmentWidth + 20; // Include separator and padding
-
-                if (accumulatedWidth + totalWidth <= remainingWidth)
-                {
-                    fittingSegments.Add(pathSegments[i]);
-                    accumulatedWidth += totalWidth;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            // If not all segments fit, show ellipsis
-            if (fittingSegments.Count < pathSegments.Count - 1)
-            {
-                showEllipsis = true;
-                visibleLeadingSegments = fittingSegments;
-                
-                // If no segments fit, still try to show at least the first one if space allows
-                if (fittingSegments.Count == 0 && pathSegments.Count > 1)
-                {
-                    visibleLeadingSegments = pathSegments.Take(1).ToList();
-                }
-            }
-            else
-            {
-                showEllipsis = false;
-                visibleLeadingSegments = pathSegments.ToList();
-            }
-
-            StateHasChanged();
-        }
-        catch
-        {
-            // Fallback: if JS measurement fails, use simple heuristic
-            if (pathSegments.Count > 3)
-            {
-                showEllipsis = true;
-                visibleLeadingSegments = pathSegments.Take(1).ToList();
-            }
-            else
-            {
-                showEllipsis = false;
-                visibleLeadingSegments = pathSegments.ToList();
-            }
-            StateHasChanged();
-        }
-    }
-
-    private async Task<double> MeasureTextWidth(string text)
-    {
-        try
-        {
-            return await JS.InvokeAsync<double>("eval", $@"
-                (function() {{
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    context.font = '500 14px system-ui';
-                    return context.measureText('{text.Replace("'", "\\'").Replace("\\", "\\\\")}').width;
-                }})()
-            ");
-        }
-        catch
-        {
-            // Fallback: estimate based on character count
-            return text.Length * 8;
-        }
-    }
-
     private async Task NavigateUpOneFolder()
     {
-        // When clicking .., navigate to the first hidden segment
         var firstHiddenIndex = visibleLeadingSegments.Count;
         if (showEllipsis && firstHiddenIndex < pathSegments.Count - 1)
         {
@@ -666,7 +562,7 @@
         
         try
         {
-            await JS.InvokeVoidAsync("eval", "setTimeout(() => { const input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
+            await JS.InvokeVoidAsync("eval", "setTimeout(function() { var input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
         }
         catch { }
     }
