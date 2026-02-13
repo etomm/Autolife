@@ -18,10 +18,10 @@
         <div class="settings-grid">
             <div class="setting-item">
                 <label class="setting-label">Theme</label>
-                <select class="form-control" @bind="userSettings.Theme" @bind:after="SaveUserSettings">
-                    <option value="@Theme.Light">Light</option>
-                    <option value="@Theme.Dark">Dark</option>
-                    <option value="@Theme.Auto">Auto</option>
+                <select class="form-control" @bind="currentThemeString" @bind:after="SaveUserSettings">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="auto">Auto</option>
                 </select>
             </div>
             <div class="setting-item">
@@ -260,6 +260,7 @@
     private List<AIProviderConfig> providers = new();
     private UserSettings userSettings = new();
     private RepositorySettings repositorySettings = new();
+    private string currentThemeString = "light";
     private bool isLoading = true;
     private bool showAddDialog = false;
     private bool showEditDialog = false;
@@ -276,7 +277,7 @@
         userSettings = SettingsManager.GetUserSettings();
         repositorySettings = SettingsManager.GetRepositorySettings();
         
-        // Override theme with localStorage preference if available
+        // Load theme preference from localStorage (actual user selection)
         await LoadThemePreference();
         
         await LoadProviders();
@@ -291,7 +292,10 @@
             
             if (!string.IsNullOrEmpty(storedTheme))
             {
-                // Parse the stored preference
+                // Use stored string value directly
+                currentThemeString = storedTheme.ToLower();
+                
+                // Also update the enum for consistency
                 userSettings.Theme = storedTheme.ToLower() switch
                 {
                     "auto" => Theme.Auto,
@@ -300,10 +304,16 @@
                     _ => Theme.Light
                 };
             }
+            else
+            {
+                // Use settings manager value
+                currentThemeString = userSettings.Theme.ToString().ToLower();
+            }
         }
         catch
         {
             // Keep SettingsManager value if localStorage fails
+            currentThemeString = userSettings.Theme.ToString().ToLower();
         }
     }
 
@@ -329,13 +339,21 @@
 
     private async void SaveUserSettings()
     {
+        // Convert string back to enum
+        userSettings.Theme = currentThemeString.ToLower() switch
+        {
+            "auto" => Theme.Auto,
+            "dark" => Theme.Dark,
+            "light" => Theme.Light,
+            _ => Theme.Light
+        };
+        
         SettingsManager.UpdateUserSettings(userSettings);
         
-        // Save theme to localStorage for instant persistence (like sidebar state)
+        // Save theme string to localStorage (not enum value!)
         try
         {
-            var themeValue = userSettings.Theme.ToString().ToLower();
-            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('theme', '{themeValue}');");
+            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('theme', '{currentThemeString}');");
         }
         catch
         {
