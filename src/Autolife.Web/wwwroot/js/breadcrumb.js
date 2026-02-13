@@ -13,10 +13,10 @@ window.breadcrumbManager = {
         console.log('[BREADCRUMB] === UPDATE START ===');
         console.log('[BREADCRUMB] Path data:', pathData);
         
-        // Get the stable container and both content divs
+        // Get the stable container (always visible) and both content divs
         const container = document.querySelector('.breadcrumb-nav');
-        const primaryContent = container?.querySelector('[data-buffer="primary"]');
-        const secondaryContent = container?.querySelector('[data-buffer="secondary"]');
+        const primaryContent = container?.querySelector('.breadcrumb-content[data-buffer="primary"]');
+        const secondaryContent = container?.querySelector('.breadcrumb-content[data-buffer="secondary"]');
         
         if (!container || !primaryContent || !secondaryContent) {
             console.error('[BREADCRUMB] ❌ Required elements not found');
@@ -33,9 +33,12 @@ window.breadcrumbManager = {
         const html = this.buildBreadcrumbHTML(pathData);
         hiddenContent.innerHTML = html;
         
-        // Make hidden buffer measurable (visibility hidden, not display none)
+        // Make hidden buffer measurable but invisible
         hiddenContent.style.visibility = 'hidden';
         hiddenContent.style.position = 'absolute';
+        hiddenContent.style.top = '0';
+        hiddenContent.style.left = '0';
+        hiddenContent.style.right = '0';
         hiddenContent.style.pointerEvents = 'none';
         
         // Wait for render
@@ -190,8 +193,8 @@ window.breadcrumbManager = {
         console.log('[BREADCRUMB] 🔄 Swapping content...');
         
         const container = document.querySelector('.breadcrumb-nav');
-        const primaryContent = container?.querySelector('[data-buffer="primary"]');
-        const secondaryContent = container?.querySelector('[data-buffer="secondary"]');
+        const primaryContent = container?.querySelector('.breadcrumb-content[data-buffer="primary"]');
+        const secondaryContent = container?.querySelector('.breadcrumb-content[data-buffer="secondary"]');
         
         if (!primaryContent || !secondaryContent) {
             console.error('[BREADCRUMB] ❌ Content divs not found for swap');
@@ -206,6 +209,9 @@ window.breadcrumbManager = {
             
             secondaryContent.style.visibility = 'hidden';
             secondaryContent.style.position = 'absolute';
+            secondaryContent.style.top = '0';
+            secondaryContent.style.left = '0';
+            secondaryContent.style.right = '0';
             secondaryContent.style.pointerEvents = 'none';
         } else {
             secondaryContent.style.visibility = 'visible';
@@ -214,6 +220,9 @@ window.breadcrumbManager = {
             
             primaryContent.style.visibility = 'hidden';
             primaryContent.style.position = 'absolute';
+            primaryContent.style.top = '0';
+            primaryContent.style.left = '0';
+            primaryContent.style.right = '0';
             primaryContent.style.pointerEvents = 'none';
         }
         
