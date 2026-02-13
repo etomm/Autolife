@@ -147,20 +147,20 @@
 
     .message-content {
         flex: 1;
-        background: #f8f9fa;
+        background: var(--bg-secondary);
         padding: 1.5rem;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--shadow);
     }
 
     .message-content h3 {
         margin: 0 0 0.5rem 0;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .message-content p {
         margin: 0.5rem 0;
-        color: #555;
+        color: var(--text-secondary);
         line-height: 1.6;
     }
 
@@ -174,8 +174,8 @@
     }
 
     .action-card {
-        background: white;
-        border: 2px solid #e9ecef;
+        background: var(--bg-secondary);
+        border: 2px solid var(--border-color);
         border-radius: 12px;
         padding: 2rem;
         cursor: pointer;
@@ -197,17 +197,21 @@
 
     .action-card h4 {
         margin: 0.5rem 0;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .action-card p {
         margin: 0.5rem 0 0 0;
-        color: #7f8c8d;
+        color: var(--text-secondary);
         font-size: 0.9rem;
     }
 
     .dashboard {
         padding: 2rem;
+    }
+
+    .dashboard h1 {
+        color: var(--text-primary);
     }
 
     .dashboard-cards {
@@ -218,9 +222,19 @@
     }
 
     .card {
-        background: white;
+        background: var(--bg-secondary);
         padding: 2rem;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    .card h3 {
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+    }
+
+    .card p {
+        color: var(--text-secondary);
+        margin: 0.5rem 0;
     }
 </style>
