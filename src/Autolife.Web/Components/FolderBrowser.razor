@@ -1,0 +1,493 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<div class="folder-browser">
+    <div class="browser-header">
+        <h5>@Title</h5>
+        <button class="btn-close" @onclick="OnCancel"></button>
+    </div>
+
+    <div class="browser-body">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> @errorMessage
+            </div>
+        }
+
+        <!-- Current Path Display -->
+        <div class="current-path">
+            <div class="breadcrumb-nav">
+                @if (!string.IsNullOrEmpty(currentPath))
+                {
+                    @foreach (var (segment, path) in GetPathSegments())
+                    {
+                        <button class="breadcrumb-item" @onclick="() => NavigateToPath(path)">
+                            @segment
+                        </button>
+                        <span class="breadcrumb-separator">/</span>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Root Selection -->
+        @if (showRootSelection)
+        {
+            <div class="folder-list">
+                @if (isLoading)
+                {
+                    <div class="loading">Loading roots...</div>
+                }
+                else
+                {
+                    @foreach (var root in roots)
+                    {
+                        <div class="folder-item" @onclick="() => SelectRoot(root.Path)">
+                            <i class="bi bi-hdd"></i>
+                            <span class="folder-name">@root.Name</span>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <!-- Folder List -->
+            <div class="folder-list">
+                @if (isLoading)
+                {
+                    <div class="loading">Loading directories...</div>
+                }
+                else
+                {
+                    @if (!string.IsNullOrEmpty(parentPath))
+                    {
+                        <div class="folder-item" @onclick="() => NavigateToPath(parentPath)">
+                            <i class="bi bi-arrow-up"></i>
+                            <span class="folder-name">..</span>
+                        </div>
+                    }
+
+                    @foreach (var dir in directories)
+                    {
+                        <div class="folder-item @(selectedPath == dir.Path ? "selected" : "") @(dir.IsAccessible ? "" : "disabled")"
+                             @onclick="() => SelectDirectory(dir.Path)">
+                            <i class="bi @(dir.IsAccessible ? "bi-folder" : "bi-folder-x")"></i>
+                            <span class="folder-name">@dir.Name</span>
+                            @if (!dir.IsAccessible)
+                            {
+                                <span class="access-denied">Access Denied</span>
+                            }
+                        </div>
+                    }
+
+                    @if (!directories.Any())
+                    {
+                        <div class="empty-folder">
+                            <i class="bi bi-folder2-open"></i>
+                            <p>No subdirectories</p>
+                        </div>
+                    }
+                }
+            </div>
+        }
+
+        <!-- Actions -->
+        <div class="browser-actions">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ShowCreateFolderDialog">
+                <i class="bi bi-folder-plus"></i> New Folder
+            </button>
+            @if (!showRootSelection)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ShowRoots">
+                    <i class="bi bi-hdd"></i> Change Root
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="browser-footer">
+        <div class="selected-path-display">
+            <strong>Selected:</strong> @(selectedPath ?? "None")
+        </div>
+        <div class="button-group">
+            <button class="btn btn-secondary" @onclick="OnCancel">Cancel</button>
+            <button class="btn btn-primary" @onclick="ConfirmSelection" disabled="@string.IsNullOrEmpty(selectedPath)">Select</button>
+        </div>
+    </div>
+</div>
+
+@if (showCreateDialog)
+{
+    <div class="modal-backdrop" @onclick="() => showCreateDialog = false"></div>
+    <div class="create-folder-dialog">
+        <h6>Create New Folder</h6>
+        <input type="text" class="form-control" @bind="newFolderName" placeholder="Folder name" />
+        <div class="dialog-buttons">
+            <button class="btn btn-sm btn-secondary" @onclick="() => showCreateDialog = false">Cancel</button>
+            <button class="btn btn-sm btn-primary" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">Create</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "Select Folder";
+    [Parameter] public string InitialPath { get; set; } = "";
+    [Parameter] public EventCallback<string> OnPathSelected { get; set; }
+    [Parameter] public EventCallback OnCancelled { get; set; }
+
+    private List<RootInfo> roots = new();
+    private List<DirectoryInfo> directories = new();
+    private string currentPath = "";
+    private string parentPath = "";
+    private string selectedPath = "";
+    private bool isLoading = false;
+    private bool showRootSelection = true;
+    private bool showCreateDialog = false;
+    private string newFolderName = "";
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoots();
+        
+        if (!string.IsNullOrEmpty(InitialPath) && Directory.Exists(InitialPath))
+        {
+            await NavigateToPath(InitialPath);
+        }
+    }
+
+    private async Task LoadRoots()
+    {
+        isLoading = true;
+        errorMessage = "";
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<RootInfo>>("/api/filesystem/roots");
+            roots = response ?? new();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load drives: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectRoot(string path)
+    {
+        await NavigateToPath(path);
+    }
+
+    private void ShowRoots()
+    {
+        showRootSelection = true;
+        currentPath = "";
+        selectedPath = "";
+        directories.Clear();
+    }
+
+    private async Task NavigateToPath(string path)
+    {
+        isLoading = true;
+        errorMessage = "";
+        showRootSelection = false;
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<BrowseResponse>($"/api/filesystem/browse?path={Uri.EscapeDataString(path)}");
+            if (response != null)
+            {
+                currentPath = response.CurrentPath;
+                parentPath = response.ParentPath ?? "";
+                directories = response.Directories;
+                selectedPath = currentPath;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to browse directory: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectDirectory(string path)
+    {
+        selectedPath = path;
+        NavigateToPath(path);
+    }
+
+    private List<(string segment, string path)> GetPathSegments()
+    {
+        var segments = new List<(string, string)>();
+        if (string.IsNullOrEmpty(currentPath)) return segments;
+
+        var parts = currentPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        var accumulated = "";
+
+        foreach (var part in parts)
+        {
+            accumulated += part + Path.DirectorySeparatorChar;
+            segments.Add((part, accumulated));
+        }
+
+        return segments;
+    }
+
+    private void ShowCreateFolderDialog()
+    {
+        showCreateDialog = true;
+        newFolderName = "";
+    }
+
+    private async Task CreateFolder()
+    {
+        if (string.IsNullOrWhiteSpace(newFolderName)) return;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/filesystem/create", new
+            {
+                ParentPath = currentPath,
+                Name = newFolderName
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                showCreateDialog = false;
+                await NavigateToPath(currentPath); // Refresh
+            }
+            else
+            {
+                errorMessage = "Failed to create folder";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task ConfirmSelection()
+    {
+        await OnPathSelected.InvokeAsync(selectedPath);
+    }
+
+    private async Task OnCancel()
+    {
+        await OnCancelled.InvokeAsync();
+    }
+
+    private class RootInfo
+    {
+        public string Path { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+    }
+
+    private class DirectoryInfo
+    {
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public DateTime LastModified { get; set; }
+        public bool IsAccessible { get; set; }
+    }
+
+    private class BrowseResponse
+    {
+        public string CurrentPath { get; set; } = "";
+        public string? ParentPath { get; set; }
+        public List<DirectoryInfo> Directories { get; set; } = new();
+    }
+}
+
+<style>
+    .folder-browser {
+        display: flex;
+        flex-direction: column;
+        height: 600px;
+        max-height: 80vh;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        box-shadow: 0 4px 24px var(--shadow);
+    }
+
+    .browser-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .browser-header h5 {
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    .browser-body {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .current-path {
+        padding: 0.75rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+
+    .breadcrumb-nav {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+
+    .breadcrumb-item {
+        background: none;
+        border: none;
+        color: var(--accent-color);
+        cursor: pointer;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .breadcrumb-item:hover {
+        background: var(--bg-secondary);
+    }
+
+    .breadcrumb-separator {
+        color: var(--text-tertiary);
+    }
+
+    .folder-list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+
+    .folder-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .folder-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .folder-item.selected {
+        background: rgba(102, 126, 234, 0.1);
+        border-left: 3px solid var(--accent-color);
+    }
+
+    .folder-item.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .folder-item i {
+        font-size: 1.25rem;
+        color: var(--accent-color);
+    }
+
+    .folder-name {
+        flex: 1;
+        color: var(--text-primary);
+    }
+
+    .access-denied {
+        color: #e53e3e;
+        font-size: 0.85rem;
+    }
+
+    .empty-folder {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-folder i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: var(--text-tertiary);
+    }
+
+    .browser-actions {
+        display: flex;
+        gap: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .browser-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .selected-path-display {
+        flex: 1;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .button-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+    }
+
+    .create-folder-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1060;
+        background: var(--bg-secondary);
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 24px var(--shadow);
+        min-width: 300px;
+    }
+
+    .create-folder-dialog h6 {
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+    }
+
+    .dialog-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+</style>
