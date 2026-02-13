@@ -13,7 +13,7 @@ window.breadcrumbManager = {
         console.log('[BREADCRUMB] === UPDATE START ===');
         console.log('[BREADCRUMB] Path data:', pathData);
         
-        // Get the stable container (always visible) and both content divs
+        // Get the stable container and both content divs
         const container = document.querySelector('.breadcrumb-nav');
         const primaryContent = container?.querySelector('.breadcrumb-content[data-buffer="primary"]');
         const secondaryContent = container?.querySelector('.breadcrumb-content[data-buffer="secondary"]');
@@ -38,7 +38,7 @@ window.breadcrumbManager = {
         hiddenContent.style.position = 'absolute';
         hiddenContent.style.top = '0';
         hiddenContent.style.left = '0';
-        hiddenContent.style.right = '0';
+        hiddenContent.style.bottom = '0';
         hiddenContent.style.pointerEvents = 'none';
         
         // Wait for render
@@ -50,28 +50,25 @@ window.breadcrumbManager = {
     buildBreadcrumbHTML: function(pathData) {
         let html = '';
         
-        // Root prefix (e.g., "C:", "/", "Network")
-        if (pathData.rootPrefix) {
-            html += `<button type="button" class="breadcrumb-item" data-navigate="${this.escapeHtml(pathData.rootPath || pathData.rootPrefix)}">`;
-            html += this.escapeHtml(pathData.rootPrefix);
-            html += `</button>`;
+        if (!pathData.segments || pathData.segments.length === 0) {
+            return html;
         }
         
-        // Path segments
-        if (pathData.segments && pathData.segments.length > 0) {
-            pathData.segments.forEach((segment, index) => {
+        // Build all segments (root is now just segments[0])
+        pathData.segments.forEach((segment, index) => {
+            if (index > 0) {
                 html += `<span class="breadcrumb-separator">/</span>`;
-                
-                const isLast = (index === pathData.segments.length - 1);
-                if (isLast) {
-                    html += `<button type="button" class="breadcrumb-item breadcrumb-current" data-segment-index="${index}">`;
-                } else {
-                    html += `<button type="button" class="breadcrumb-item" data-segment-index="${index}" data-navigate="${this.escapeHtml(segment.path)}">`;
-                }
-                html += this.escapeHtml(segment.label);
-                html += `</button>`;
-            });
-        }
+            }
+            
+            const isLast = (index === pathData.segments.length - 1);
+            if (isLast) {
+                html += `<button type="button" class="breadcrumb-item breadcrumb-current" data-segment-index="${index}">`;
+            } else {
+                html += `<button type="button" class="breadcrumb-item" data-segment-index="${index}" data-navigate="${this.escapeHtml(segment.path)}">`;
+            }
+            html += this.escapeHtml(segment.label);
+            html += `</button>`;
+        });
         
         return html;
     },
@@ -102,7 +99,7 @@ window.breadcrumbManager = {
         
         console.log('[BREADCRUMB] ❌ Need ellipsis, calculating...');
         
-        // Get all segment buttons (excluding root and current)
+        // Get all segment buttons (excluding current/last)
         const segments = Array.from(content.querySelectorAll('.breadcrumb-item[data-segment-index]'));
         const middleSegments = segments.slice(0, -1); // Exclude last (current)
         
@@ -122,7 +119,7 @@ window.breadcrumbManager = {
         });
         
         // Calculate how much to remove (overflow + ellipsis width + buffer)
-        const ellipsisWidth = 50; // Approximate width of ".." button
+        const ellipsisWidth = 50; // Approximate width of "..." button
         const buffer = 20; // Safety margin
         const targetRemoval = overflow + ellipsisWidth + buffer;
         console.log(`[BREADCRUMB] Target removal: ${targetRemoval}px`);
@@ -153,13 +150,6 @@ window.breadcrumbManager = {
     buildBreadcrumbWithEllipsis: function(pathData, keepCount) {
         let html = '';
         
-        // Root prefix
-        if (pathData.rootPrefix) {
-            html += `<button type="button" class="breadcrumb-item" data-navigate="${this.escapeHtml(pathData.rootPath || pathData.rootPrefix)}">`;
-            html += this.escapeHtml(pathData.rootPrefix);
-            html += `</button>`;
-        }
-        
         if (!pathData.segments || pathData.segments.length === 0) {
             return html;
         }
@@ -167,7 +157,9 @@ window.breadcrumbManager = {
         // Leading segments (those we keep)
         for (let i = 0; i < keepCount; i++) {
             const segment = pathData.segments[i];
-            html += `<span class="breadcrumb-separator">/</span>`;
+            if (i > 0) {
+                html += `<span class="breadcrumb-separator">/</span>`;
+            }
             html += `<button type="button" class="breadcrumb-item" data-navigate="${this.escapeHtml(segment.path)}">`;
             html += this.escapeHtml(segment.label);
             html += `</button>`;
@@ -176,7 +168,7 @@ window.breadcrumbManager = {
         // Ellipsis
         html += `<span class="breadcrumb-separator">/</span>`;
         html += `<button type="button" class="breadcrumb-ellipsis" data-navigate-up="true">`;
-        html += `<span>..</span>`;
+        html += `<span>...</span>`;
         html += `</button>`;
         
         // Last segment (current)
@@ -211,7 +203,7 @@ window.breadcrumbManager = {
             secondaryContent.style.position = 'absolute';
             secondaryContent.style.top = '0';
             secondaryContent.style.left = '0';
-            secondaryContent.style.right = '0';
+            secondaryContent.style.bottom = '0';
             secondaryContent.style.pointerEvents = 'none';
         } else {
             secondaryContent.style.visibility = 'visible';
@@ -222,7 +214,7 @@ window.breadcrumbManager = {
             primaryContent.style.position = 'absolute';
             primaryContent.style.top = '0';
             primaryContent.style.left = '0';
-            primaryContent.style.right = '0';
+            primaryContent.style.bottom = '0';
             primaryContent.style.pointerEvents = 'none';
         }
         
