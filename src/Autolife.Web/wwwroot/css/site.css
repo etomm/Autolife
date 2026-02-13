@@ -29,6 +29,56 @@
     --accent-hover: #8a9ef5;
 }
 
+/* ===== GLOBAL FOCUS OUTLINE REMOVAL ===== */
+/* Remove ALL focus outlines globally - no white lines! */
+*:focus,
+*:focus-visible,
+button:focus,
+button:focus-visible,
+a:focus,
+a:focus-visible,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove Bootstrap's default focus box-shadow */
+.btn:focus,
+.btn:active:focus,
+.btn.active:focus,
+.btn.focus,
+.btn:active.focus,
+.btn.active.focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove focus from form controls */
+.form-control:focus,
+.form-select:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: var(--accent-color) !important;
+}
+
+/* Remove focus from all interactive elements */
+button,
+a,
+input,
+select,
+textarea,
+[tabindex] {
+    outline: none !important;
+}
+
+button::-moz-focus-inner,
+a::-moz-focus-inner {
+    border: 0 !important;
+    outline: none !important;
+}
+
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
@@ -107,7 +157,7 @@ select:focus {
     background-color: var(--input-bg) !important;
     color: var(--text-primary) !important;
     border-color: var(--accent-color) !important;
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    box-shadow: none !important;
 }
 
 /* Provider cards */
