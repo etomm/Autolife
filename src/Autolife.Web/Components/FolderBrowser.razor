@@ -21,30 +21,45 @@
             {
                 <div class="current-path">
                     <div class="breadcrumb-nav">
-                        @if (!string.IsNullOrEmpty(pathPrefix))
+                        <!-- Left arrow to return to root selection -->
+                        <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        
+                        <!-- Root button (Drive or Network) -->
+                        @if (!string.IsNullOrEmpty(rootPrefix))
                         {
-                            <button type="button" class="breadcrumb-prefix" @onclick="ShowRoots" title="Change root">
-                                <i class="bi bi-chevron-left"></i>
-                                <span>@pathPrefix</span>
+                            <button type="button" class="breadcrumb-root" @onclick="NavigateToRoot" title="Go to root">
+                                @rootPrefix
                             </button>
-                            <span class="breadcrumb-separator">/</span>
                         }
+                        
+                        <!-- Path segments with ellipsis -->
                         @if (pathSegments.Count > 0)
                         {
-                            @if (showEllipsis)
+                            @if (showEllipsis && hiddenSegments.Count > 0)
                             {
-                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneLevel" title="Go up one level">
+                                <span class="breadcrumb-separator">/</span>
+                                @foreach (var (segment, path) in hiddenSegments)
+                                {
+                                    var capturedPath = path;
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                        @segment
+                                    </button>
+                                    <span class="breadcrumb-separator">/</span>
+                                }
+                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one folder">
                                     <span>..</span>
                                 </button>
-                                <span class="breadcrumb-separator">/</span>
                             }
+                            
                             @foreach (var (segment, path) in visibleSegments)
                             {
                                 var capturedPath = path;
+                                <span class="breadcrumb-separator">/</span>
                                 <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                                     @segment
                                 </button>
-                                <span class="breadcrumb-separator">/</span>
                             }
                         }
                     </div>
@@ -244,7 +259,8 @@
     private string currentPath = "";
     private string parentPath = "";
     private string selectedPath = "";
-    private string pathPrefix = "";
+    private string rootPrefix = "";
+    private string rootPath = "";
     private bool isLoading = false;
     private bool showRootSelection = true;
     private bool canCreateFolder = false;
@@ -267,6 +283,7 @@
     // Path truncation support
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleSegments = new();
+    private List<(string segment, string path)> hiddenSegments = new();
     private bool showEllipsis = false;
 
     protected override async Task OnInitializedAsync()
@@ -333,16 +350,26 @@
         showRootSelection = true;
         currentPath = "";
         selectedPath = "";
-        pathPrefix = "";
+        rootPrefix = "";
+        rootPath = "";
         directories.Clear();
         canCreateFolder = false;
         pathSegments.Clear();
         visibleSegments.Clear();
+        hiddenSegments.Clear();
         showEllipsis = false;
         showCreateInline = false;
         ClearError();
         ClearCreateError();
         StateHasChanged();
+    }
+
+    private async Task NavigateToRoot()
+    {
+        if (!string.IsNullOrEmpty(rootPath))
+        {
+            await NavigateToPath(rootPath);
+        }
     }
 
     private async Task NavigateToPath(string path)
@@ -365,8 +392,9 @@
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder; // Backend verifies write access
                 
-                // Set prefix and calculate segments
-                UpdatePathPrefix(currentPath);
+                // Set root prefix and path
+                UpdateRootInfo(currentPath);
+                // Calculate segments for breadcrumb
                 CalculatePathSegments();
             }
         }
@@ -381,32 +409,50 @@
         }
     }
 
-    private void UpdatePathPrefix(string path)
+    private void UpdateRootInfo(string path)
     {
         if (string.IsNullOrEmpty(path))
         {
-            pathPrefix = "";
+            rootPrefix = "";
+            rootPath = "";
             return;
         }
 
         // Check if network path (UNC)
         if (isWindows && path.StartsWith("\\\\"))
         {
-            pathPrefix = "Network";
+            rootPrefix = "Network";
+            // Find first two segments for UNC root (\\server\share)
+            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                rootPath = $"\\\\{parts[0]}\\{parts[1]}";
+            }
+            else if (parts.Length == 1)
+            {
+                rootPath = $"\\\\{parts[0]}";
+            }
+            else
+            {
+                rootPath = "\\\\";
+            }
         }
         // Check if drive letter
         else if (isWindows && path.Length >= 2 && path[1] == ':')
         {
-            pathPrefix = $"Drive {path.Substring(0, 2).ToUpper()}";
+            rootPrefix = path.Substring(0, 2).ToUpper();
+            rootPath = rootPrefix + "\\";
         }
         // Unix root
         else if (path.StartsWith("/"))
         {
-            pathPrefix = "Root";
+            rootPrefix = "/";
+            rootPath = "/";
         }
         else
         {
-            pathPrefix = "";
+            rootPrefix = "";
+            rootPath = "";
         }
     }
 
@@ -414,22 +460,32 @@
     {
         pathSegments.Clear();
         visibleSegments.Clear();
+        hiddenSegments.Clear();
         showEllipsis = false;
 
         if (string.IsNullOrEmpty(currentPath)) return;
 
         var path = currentPath;
         
-        // Remove prefix for segment building
+        // Remove root prefix for segment building
         if (isWindows && path.Length >= 2 && path[1] == ':')
         {
-            // Skip drive letter (already in prefix)
+            // Skip drive letter (already in rootPrefix)
             path = path.Substring(2).TrimStart('\\', '/');
         }
         else if (isWindows && path.StartsWith("\\\\"))
         {
-            // Skip UNC prefix
-            path = path.Substring(2).TrimStart('\\', '/');
+            // Skip UNC prefix - remove \\server\share part
+            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 2)
+            {
+                // Skip server and share, keep rest
+                path = string.Join("\\", parts.Skip(2));
+            }
+            else
+            {
+                path = "";
+            }
         }
         else if (path.StartsWith("/"))
         {
@@ -443,36 +499,42 @@
             return;
         }
 
-        var parts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         var accumulated = currentPath.Substring(0, currentPath.Length - path.Length);
 
-        foreach (var part in parts)
+        foreach (var part in pathParts)
         {
             accumulated += part + Path.DirectorySeparatorChar;
             pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        // Calculate visible segments - show ellipsis if path is too long
-        const int maxVisibleSegments = 4;
+        // Calculate visible vs hidden segments
+        const int maxVisibleSegments = 3; // Show last 3 segments
+        const int minHiddenToShow = 1; // Show at least 1 segment before ..
         
-        if (pathSegments.Count > maxVisibleSegments)
+        if (pathSegments.Count > maxVisibleSegments + minHiddenToShow)
         {
             showEllipsis = true;
+            // Show first minHiddenToShow segments, then .., then last maxVisibleSegments
+            hiddenSegments = pathSegments.Take(minHiddenToShow).ToList();
             visibleSegments = pathSegments.Skip(pathSegments.Count - maxVisibleSegments).ToList();
         }
         else
         {
             showEllipsis = false;
+            hiddenSegments.Clear();
             visibleSegments = pathSegments;
         }
     }
 
-    private async Task NavigateUpOneLevel()
+    private async Task NavigateUpOneFolder()
     {
-        // When clicking ellipsis, go to the first hidden segment (one level above visible segments)
-        if (showEllipsis && pathSegments.Count > visibleSegments.Count)
+        // When clicking ellipsis (..), navigate to the last segment before the visible segments
+        // This is the first hidden segment after the displayed hidden segments
+        if (showEllipsis && pathSegments.Count > visibleSegments.Count + hiddenSegments.Count)
         {
-            var targetSegment = pathSegments[pathSegments.Count - visibleSegments.Count - 1];
+            var targetIndex = hiddenSegments.Count;
+            var targetSegment = pathSegments[targetIndex];
             await NavigateToPath(targetSegment.path);
         }
     }
@@ -783,7 +845,33 @@
         min-height: 32px;
     }
 
-    .breadcrumb-prefix {
+    /* Left arrow button - back to root selection */
+    .breadcrumb-back {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        cursor: pointer;
+        padding: 0.375rem 0.5rem;
+        border-radius: 6px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        height: 32px;
+    }
+
+    .breadcrumb-back:hover {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+
+    .breadcrumb-back i {
+        font-size: 1rem;
+    }
+
+    /* Root button (Drive letter or Network) */
+    .breadcrumb-root {
         background: var(--accent-color);
         color: white;
         border: none;
@@ -791,19 +879,16 @@
         padding: 0.375rem 0.75rem;
         border-radius: 6px;
         transition: background 0.2s;
-        font-weight: 500;
+        font-weight: 600;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
         flex-shrink: 0;
+        height: 32px;
+        margin-left: 0.25rem;
     }
 
-    .breadcrumb-prefix:hover {
+    .breadcrumb-root:hover {
         background: var(--accent-hover);
-    }
-
-    .breadcrumb-prefix i {
-        font-size: 0.9rem;
     }
 
     .breadcrumb-ellipsis {
