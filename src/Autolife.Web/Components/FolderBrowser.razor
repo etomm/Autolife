@@ -22,21 +22,21 @@
                         <i class="bi bi-chevron-left"></i>
                     </button>
 
-                    <!-- Primary breadcrumb container (always visible) -->
-                    <div class="breadcrumb-nav" @ref="breadcrumbNavRef">
+                    <!-- Primary breadcrumb container -->
+                    <div class="breadcrumb-nav @(primaryVisible ? "" : "hidden") @(isCalculating && primaryVisible ? "blocked" : "")" @ref="breadcrumbNavRef">
                         <div class="breadcrumb-content">
-                            @if (!string.IsNullOrEmpty(rootPrefix))
+                            @if (!string.IsNullOrEmpty(primaryRootPrefix))
                             {
                                 <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
-                                    @rootPrefix
+                                    @primaryRootPrefix
                                 </button>
                             }
                             
-                            @if (pathSegments.Count > 0)
+                            @if (primaryPathSegments.Count > 0)
                             {
-                                @if (showEllipsis)
+                                @if (primaryShowEllipsis)
                                 {
-                                    @foreach (var (segment, path) in visibleLeadingSegments)
+                                    @foreach (var (segment, path) in primaryVisibleLeadingSegments)
                                     {
                                         var capturedPath = path;
                                         <span class="breadcrumb-separator">/</span>
@@ -48,22 +48,22 @@
                                     <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
                                         <span>..</span>
                                     </button>
-                                    @if (!string.IsNullOrEmpty(lastSegment.segment))
+                                    @if (!string.IsNullOrEmpty(primaryLastSegment.segment))
                                     {
-                                        var capturedPath = lastSegment.path;
+                                        var capturedPath = primaryLastSegment.path;
                                         <span class="breadcrumb-separator">/</span>
                                         <button type="button" class="breadcrumb-item breadcrumb-current">
-                                            @lastSegment.segment
+                                            @primaryLastSegment.segment
                                         </button>
                                     }
                                 }
                                 else
                                 {
-                                    @for (int i = 0; i < pathSegments.Count; i++)
+                                    @for (int i = 0; i < primaryPathSegments.Count; i++)
                                     {
-                                        var segment = pathSegments[i];
+                                        var segment = primaryPathSegments[i];
                                         var capturedPath = segment.path;
-                                        var isLast = (i == pathSegments.Count - 1);
+                                        var isLast = (i == primaryPathSegments.Count - 1);
                                         <span class="breadcrumb-separator">/</span>
                                         @if (isLast)
                                         {
@@ -83,8 +83,8 @@
                         </div>
                     </div>
 
-                    <!-- Hidden breadcrumb container (for measuring only, always hidden) -->
-                    <div class="breadcrumb-nav hidden" @ref="breadcrumbNavSecondaryRef">
+                    <!-- Secondary breadcrumb container -->
+                    <div class="breadcrumb-nav @(primaryVisible ? "hidden" : "") @(isCalculating && !primaryVisible ? "blocked" : "")" @ref="breadcrumbNavSecondaryRef">
                         <div class="breadcrumb-content" @ref="breadcrumbContentSecondaryRef">
                             @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                             {
@@ -419,11 +419,6 @@
         min-height: 60px;
     }
 
-    .current-path.calculating {
-        pointer-events: none;
-        opacity: 0.7;
-    }
-
     .breadcrumb-nav {
         flex: 1;
         overflow: hidden;
@@ -432,6 +427,11 @@
 
     .breadcrumb-nav.hidden {
         display: none;
+    }
+
+    .breadcrumb-nav.blocked {
+        pointer-events: none;
+        opacity: 0.7;
     }
 
     .breadcrumb-content {
