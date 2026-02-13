@@ -27,7 +27,7 @@
 
                     <!-- Active breadcrumb container -->
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "" : "hidden")" @ref="breadcrumbNavRef">
-                        <!-- Root button (Drive or Network) - NO separator before it -->
+                        <!-- Root button (Drive or Network) -->
                         @if (!string.IsNullOrEmpty(rootPrefix))
                         {
                             <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
@@ -361,6 +361,7 @@
 
     // Dual breadcrumb system
     private bool showPrimaryBreadcrumb = true;
+    private bool needsCalculation = false;
 
     // Primary breadcrumb state
     private List<(string segment, string path)> pathSegments = new();
@@ -392,9 +393,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!showRootSelection && measurePathSegments.Count > 0)
+        if (!showRootSelection && needsCalculation)
         {
             await CalculateAndSwapBreadcrumb();
+            needsCalculation = false;
+            StateHasChanged();
         }
     }
 
@@ -407,12 +410,19 @@
             var containerWidth = await JS.InvokeAsync<double>("eval", 
                 "(function() { var el = document.querySelector('.breadcrumb-nav'); return el ? el.offsetWidth : 0; })()");
             
-            if (containerWidth <= 0) return;
+            if (containerWidth <= 0)
+            {
+                // Fallback - show everything without ellipsis
+                secondaryShowEllipsis = false;
+                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                SwapBreadcrumbs();
+                return;
+            }
 
             var backButtonWidth = 32.0;
-            var ellipsisButtonWidth = 36.0;
+            var ellipsisButtonWidth = 40.0;  // Slightly larger to account for padding
             var newFolderButtonWidth = canCreateFolder && !showCreateInline ? 60.0 : 0.0;
-            var margins = 50.0;
+            var margins = 60.0;  // Increased margins for safety
 
             var segmentWidths = await JS.InvokeAsync<double[]>("eval", @"
                 (function() {
@@ -432,7 +442,7 @@
                     var container = document.querySelector('.breadcrumb-measure');
                     if (!container) return 0;
                     var root = container.querySelector('[data-measure-root]');
-                    return root ? root.offsetWidth + 8 : 0;
+                    return root ? root.offsetWidth + 12 : 0;
                 })()
             ");
 
@@ -440,87 +450,72 @@
             {
                 secondaryShowEllipsis = false;
                 secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-            }
-            else
-            {
-                var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
-                var totalWidth = segmentWidths.Sum();
-
-                if (totalWidth <= availableWidth)
-                {
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-                else
-                {
-                    var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
-                    var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 20;
-
-                    var fittingCount = 0;
-                    var accumulatedWidth = 0.0;
-
-                    for (int i = 0; i < segmentWidths.Length - 1; i++)
-                    {
-                        if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
-                        {
-                            accumulatedWidth += segmentWidths[i];
-                            fittingCount++;
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-
-                    if (fittingCount == 0 && secondaryPathSegments.Count > 1)
-                    {
-                        fittingCount = 1;
-                    }
-
-                    secondaryShowEllipsis = true;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.Take(fittingCount).ToList();
-                }
+                SwapBreadcrumbs();
+                return;
             }
 
-            // Swap breadcrumbs
-            showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
-            
-            // Copy secondary to primary for next calculation
-            rootPrefix = secondaryRootPrefix;
-            pathSegments = secondaryPathSegments.ToList();
-            visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
-            lastSegment = secondaryLastSegment;
-            showEllipsis = secondaryShowEllipsis;
+            var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
+            var totalWidth = segmentWidths.Sum();
 
-            // Clear measurement data
-            measureRootPrefix = "";
-            measurePathSegments.Clear();
-
-            StateHasChanged();
-        }
-        catch
-        {
-            if (secondaryPathSegments.Count > 3)
-            {
-                secondaryShowEllipsis = true;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.Take(1).ToList();
-            }
-            else
+            // Check if all segments fit
+            if (totalWidth <= availableWidth)
             {
                 secondaryShowEllipsis = false;
                 secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
             }
+            else
+            {
+                // Calculate how many leading segments fit + ellipsis + last segment
+                var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
+                var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 24; // separator widths
 
-            showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
-            rootPrefix = secondaryRootPrefix;
-            pathSegments = secondaryPathSegments.ToList();
-            visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
-            lastSegment = secondaryLastSegment;
-            showEllipsis = secondaryShowEllipsis;
-            measureRootPrefix = "";
-            measurePathSegments.Clear();
-            StateHasChanged();
+                var fittingCount = 0;
+                var accumulatedWidth = 0.0;
+
+                // Try to fit as many leading segments as possible
+                for (int i = 0; i < segmentWidths.Length - 1; i++)
+                {
+                    if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
+                    {
+                        accumulatedWidth += segmentWidths[i];
+                        fittingCount++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                // Always show at least ellipsis + last if we have more than 1 segment
+                secondaryShowEllipsis = true;
+                secondaryVisibleLeadingSegments = fittingCount > 0 
+                    ? secondaryPathSegments.Take(fittingCount).ToList() 
+                    : new List<(string, string)>();
+            }
+
+            SwapBreadcrumbs();
         }
+        catch (Exception ex)
+        {
+            // Fallback on error - show all segments
+            Console.WriteLine($"Breadcrumb calculation error: {ex.Message}");
+            secondaryShowEllipsis = false;
+            secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+            SwapBreadcrumbs();
+        }
+    }
+
+    private void SwapBreadcrumbs()
+    {
+        // Swap visibility
+        showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
+        
+        // Copy secondary to primary for next calculation
+        rootPrefix = secondaryRootPrefix;
+        pathSegments = secondaryPathSegments.ToList();
+        visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
+        lastSegment = secondaryLastSegment;
+        showEllipsis = secondaryShowEllipsis;
     }
 
     private async Task LoadRoots()
@@ -582,6 +577,7 @@
         secondaryPathSegments.Clear();
         measurePathSegments.Clear();
         showCreateInline = false;
+        needsCalculation = false;
         ClearError();
         ClearCreateError();
         StateHasChanged();
@@ -602,7 +598,6 @@
         ClearCreateError();
         showRootSelection = false;
         showCreateInline = false;
-        StateHasChanged();
 
         try
         {
@@ -622,11 +617,15 @@
                 // Prepare measurement data
                 measureRootPrefix = secondaryRootPrefix;
                 measurePathSegments = secondaryPathSegments.ToList();
+
+                // Trigger calculation on next render
+                needsCalculation = true;
             }
         }
         catch (Exception ex)
         {
             SetError("Cannot access directory", ex.Message);
+            needsCalculation = false;
         }
         finally
         {
@@ -1120,10 +1119,7 @@
         border-radius: 4px;
         transition: background 0.2s;
         white-space: nowrap;
-        flex-shrink: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        flex-shrink: 0;
         font-weight: 500;
     }
 
