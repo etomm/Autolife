@@ -1,17 +1,211 @@
 @inherits LayoutComponentBase
 
-<div class="page">
+<div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")">
     <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <h3 class="text-white"><i class="bi bi-robot"></i> Autolife</h3>
+        <div class="sidebar-header">
+            <button class="hamburger-btn" @onclick="ToggleSidebar">
+                <i class="bi bi-list"></i>
+            </button>
+            @if (!sidebarCollapsed)
+            {
+                <span class="app-title">Autolife</span>
+            }
         </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
+        
+        <nav class="sidebar-nav">
+            <NavLink href="/" Match="NavLinkMatch.All" class="nav-item">
+                <i class="bi bi-house-door"></i>
+                @if (!sidebarCollapsed)
+                {
+                    <span class="nav-text">Home</span>
+                }
+            </NavLink>
+            
+            <NavLink href="/knowledge" class="nav-item">
+                <i class="bi bi-book"></i>
+                @if (!sidebarCollapsed)
+                {
+                    <span class="nav-text">Knowledge</span>
+                }
+            </NavLink>
+            
+            <NavLink href="/documents" class="nav-item">
+                <i class="bi bi-file-earmark-text"></i>
+                @if (!sidebarCollapsed)
+                {
+                    <span class="nav-text">Documents</span>
+                }
+            </NavLink>
+            
+            <NavLink href="/projects" class="nav-item">
+                <i class="bi bi-kanban"></i>
+                @if (!sidebarCollapsed)
+                {
+                    <span class="nav-text">Projects</span>
+                }
+            </NavLink>
+            
+            <div class="nav-spacer"></div>
+            
+            <NavLink href="/settings" class="nav-item">
+                <i class="bi bi-gear"></i>
+                @if (!sidebarCollapsed)
+                {
+                    <span class="nav-text">Settings</span>
+                }
+            </NavLink>
+        </nav>
+    </div>
+    
+    <main class="main-content">
+        @Body
     </main>
 </div>
+
+@code {
+    private bool sidebarCollapsed = false;
+
+    private void ToggleSidebar()
+    {
+        sidebarCollapsed = !sidebarCollapsed;
+    }
+}
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .app-container {
+        display: flex;
+        min-height: 100vh;
+        background: #f5f7fa;
+    }
+
+    .sidebar {
+        width: 250px;
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        transition: width 0.3s ease;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+        position: fixed;
+        height: 100vh;
+        z-index: 1000;
+    }
+
+    .sidebar-collapsed .sidebar {
+        width: 70px;
+    }
+
+    .sidebar-header {
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .hamburger-btn {
+        background: rgba(255,255,255,0.1);
+        border: none;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        transition: background 0.2s;
+    }
+
+    .hamburger-btn:hover {
+        background: rgba(255,255,255,0.2);
+    }
+
+    .app-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .sidebar-nav {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem 0;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        color: rgba(255,255,255,0.8);
+        text-decoration: none;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .sidebar-collapsed .nav-item {
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .nav-item:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+    }
+
+    .nav-item.active {
+        background: rgba(255,255,255,0.15);
+        color: white;
+        border-left: 4px solid white;
+    }
+
+    .nav-item i {
+        font-size: 1.5rem;
+        min-width: 24px;
+        text-align: center;
+    }
+
+    .nav-text {
+        font-size: 1rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .nav-spacer {
+        flex: 1;
+    }
+
+    .main-content {
+        flex: 1;
+        margin-left: 250px;
+        transition: margin-left 0.3s ease;
+        min-height: 100vh;
+    }
+
+    .sidebar-collapsed .main-content {
+        margin-left: 70px;
+    }
+
+    @media (max-width: 768px) {
+        .sidebar {
+            width: 70px;
+        }
+
+        .main-content {
+            margin-left: 70px;
+        }
+
+        .app-title {
+            display: none;
+        }
+    }
+</style>

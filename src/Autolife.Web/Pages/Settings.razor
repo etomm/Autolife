@@ -6,15 +6,53 @@
 <PageTitle>Settings - Autolife</PageTitle>
 
 <div class="settings-container">
-    <h1>⚙️ Settings</h1>
+    <h1><i class="bi bi-gear"></i> Settings</h1>
 
+    <!-- UI Settings Section -->
+    <div class="settings-section">
+        <h2><i class="bi bi-palette"></i> User Interface</h2>
+        <div class="settings-grid">
+            <div class="setting-item">
+                <label class="setting-label">Theme</label>
+                <select class="form-control">
+                    <option>Light</option>
+                    <option>Dark</option>
+                    <option>Auto</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">Language</label>
+                <select class="form-control">
+                    <option>English</option>
+                    <option>Italian</option>
+                    <option>Spanish</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">Date Format</label>
+                <select class="form-control">
+                    <option>MM/DD/YYYY</option>
+                    <option>DD/MM/YYYY</option>
+                    <option>YYYY-MM-DD</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">Items per page</label>
+                <input type="number" class="form-control" value="20" min="10" max="100" />
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Providers Section -->
     <div class="settings-section">
         <div class="section-header">
-            <h2>🤖 AI Providers</h2>
+            <h2><i class="bi bi-robot"></i> AI Providers</h2>
             <button class="btn btn-primary" @onclick="() => showAddDialog = true">
                 <i class="bi bi-plus-lg"></i> Add Provider
             </button>
         </div>
+        
+        <p class="section-description">Manage AI providers in priority order. Drag to reorder - top providers are tried first, with automatic fallback to lower ones if they fail.</p>
 
         @if (isLoading)
         {
@@ -24,69 +62,102 @@
         }
         else if (providers.Any())
         {
-            <div class="fallback-chain">
-                <h3>Fallback Chain (Priority Order)</h3>
-                <div class="chain-items">
-                    @foreach (var provider in providers.OrderBy(p => p.Priority))
-                    {
-                        <div class="chain-item">
-                            <div class="chain-arrow">@(provider.Priority == providers.Min(p => p.Priority) ? "➤" : "↓")</div>
-                            <div class="provider-card @(provider.IsEnabled ? "" : "disabled")">
-                                <div class="provider-header">
-                                    <div class="provider-info">
+            <div class="providers-list">
+                @foreach (var provider in providers.OrderBy(p => p.Priority))
+                {
+                    <div class="provider-card @(provider.IsEnabled ? "" : "disabled")" draggable="true">
+                        <div class="drag-handle">
+                            <i class="bi bi-grip-vertical"></i>
+                        </div>
+                        <div class="provider-content">
+                            <div class="provider-main">
+                                <div class="provider-info">
+                                    <div class="provider-name-row">
                                         <h4>@provider.Name</h4>
-                                        <span class="provider-type">@provider.Type</span>
-                                        <span class="status-badge status-@provider.Status.ToString().ToLower()">@provider.Status</span>
+                                        <span class="status-badge status-@provider.Status.ToString().ToLower()">
+                                            <i class="bi bi-circle-fill"></i> @provider.Status
+                                        </span>
                                     </div>
-                                    <div class="provider-actions">
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditProvider(provider)">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteProvider(provider.Id)">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                    <div class="provider-meta">
+                                        <span class="meta-item"><i class="bi bi-tag"></i> @provider.Type</span>
+                                        <span class="meta-item"><i class="bi bi-cpu"></i> @provider.Model</span>
+                                        @if (!provider.IsEnabled)
+                                        {
+                                            <span class="meta-item disabled-badge"><i class="bi bi-pause-circle"></i> Disabled</span>
+                                        }
                                     </div>
                                 </div>
-                                <div class="provider-details">
-                                    <div class="detail-row">
-                                        <span class="label">Priority:</span>
-                                        <span class="value">@provider.Priority</span>
-                                    </div>
-                                    <div class="detail-row">
-                                        <span class="label">Model:</span>
-                                        <span class="value">@provider.Model</span>
-                                    </div>
-                                    <div class="detail-row">
-                                        <span class="label">Enabled:</span>
-                                        <span class="value">@(provider.IsEnabled ? "Yes" : "No")</span>
-                                    </div>
+                                <div class="provider-actions">
+                                    <button class="btn-icon" @onclick="() => EditProvider(provider)" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn-icon" @onclick="() => DeleteProvider(provider.Id)" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            @if (provider.LastSuccessfulCall.HasValue || provider.ConsecutiveFailures > 0)
+                            {
+                                <div class="provider-stats">
                                     @if (provider.LastSuccessfulCall.HasValue)
                                     {
-                                        <div class="detail-row">
-                                            <span class="label">Last Success:</span>
-                                            <span class="value">@provider.LastSuccessfulCall.Value.ToLocalTime().ToString("g")</span>
-                                        </div>
+                                        <span class="stat-item success">
+                                            <i class="bi bi-check-circle"></i> Last success: @provider.LastSuccessfulCall.Value.ToLocalTime().ToString("g")
+                                        </span>
                                     }
                                     @if (provider.ConsecutiveFailures > 0)
                                     {
-                                        <div class="detail-row warning">
-                                            <span class="label">Consecutive Failures:</span>
-                                            <span class="value">@provider.ConsecutiveFailures</span>
-                                        </div>
+                                        <span class="stat-item failure">
+                                            <i class="bi bi-exclamation-triangle"></i> @provider.ConsecutiveFailures consecutive failures
+                                        </span>
                                     }
                                 </div>
-                            </div>
+                            }
                         </div>
-                    }
-                </div>
+                    </div>
+                }
             </div>
         }
         else
         {
             <div class="empty-state">
-                <p>No AI providers configured. Add your first provider to get started.</p>
+                <i class="bi bi-robot"></i>
+                <p>No AI providers configured.</p>
+                <button class="btn btn-primary" @onclick="() => showAddDialog = true">Add Your First Provider</button>
             </div>
         }
+    </div>
+
+    <!-- Repository Settings Section -->
+    <div class="settings-section">
+        <h2><i class="bi bi-database"></i> Repository</h2>
+        <div class="settings-grid">
+            <div class="setting-item full-width">
+                <label class="setting-label">Storage Type</label>
+                <select class="form-control">
+                    <option>In-Memory (Default)</option>
+                    <option>Local Git Repository</option>
+                    <option>SQLite Database</option>
+                    <option>PostgreSQL</option>
+                </select>
+            </div>
+            <div class="setting-item full-width">
+                <label class="setting-label">Local Repository Path</label>
+                <input type="text" class="form-control" placeholder="/path/to/autolife-data" />
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">Auto-commit changes</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" checked />
+                </div>
+            </div>
+            <div class="setting-item">
+                <label class="setting-label">Auto-backup</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" />
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -96,13 +167,13 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5>@(showEditDialog ? "Edit" : "Add") AI Provider</h5>
+                <h5><i class="bi bi-robot"></i> @(showEditDialog ? "Edit" : "Add") AI Provider</h5>
                 <button class="btn-close" @onclick="CloseDialog"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label">Provider Name *</label>
-                    <input type="text" class="form-control" @bind="editingProvider.Name" />
+                    <input type="text" class="form-control" @bind="editingProvider.Name" placeholder="My OpenAI Provider" />
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Provider Type *</label>
@@ -128,12 +199,7 @@
                 }
                 <div class="mb-3">
                     <label class="form-label">Model *</label>
-                    <input type="text" class="form-control" @bind="editingProvider.Model" placeholder="gpt-4, claude-3, etc." />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Priority (lower = higher priority) *</label>
-                    <input type="number" class="form-control" @bind="editingProvider.Priority" min="0" max="100" />
-                    <small class="form-text text-muted">0 = highest priority, 100 = lowest priority</small>
+                    <input type="text" class="form-control" @bind="editingProvider.Model" placeholder="gpt-4, claude-3-opus, etc." />
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Timeout (seconds)</label>
@@ -148,7 +214,7 @@
                 <button class="btn btn-secondary" @onclick="CloseDialog">Cancel</button>
                 <button class="btn btn-primary" @onclick="SaveProvider" 
                         disabled="@(string.IsNullOrWhiteSpace(editingProvider.Name) || string.IsNullOrWhiteSpace(editingProvider.ApiKey) || string.IsNullOrWhiteSpace(editingProvider.Model))">
-                    Save
+                    <i class="bi bi-check-lg"></i> Save
                 </button>
             </div>
         </div>
@@ -207,6 +273,8 @@
             }
             else
             {
+                // Auto-assign priority based on current count
+                editingProvider.Priority = providers.Any() ? providers.Max(p => p.Priority) + 1 : 0;
                 await ProviderManager.AddProviderAsync(editingProvider);
             }
             
@@ -223,7 +291,6 @@
     {
         if (providers.Count == 1)
         {
-            // Don't allow deleting the last provider
             return;
         }
 
@@ -242,15 +309,23 @@
     {
         showAddDialog = false;
         showEditDialog = false;
-        editingProvider = new AIProviderConfig { Priority = 10, TimeoutSeconds = 30, IsEnabled = true };
+        editingProvider = new AIProviderConfig { TimeoutSeconds = 30, IsEnabled = true };
     }
 }
 
 <style>
     .settings-container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
         padding: 2rem;
+    }
+
+    .settings-container > h1 {
+        color: #2c3e50;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
     }
 
     .settings-section {
@@ -261,85 +336,119 @@
         margin-bottom: 2rem;
     }
 
+    .settings-section h2 {
+        color: #2c3e50;
+        margin: 0 0 1.5rem 0;
+        font-size: 1.3rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
     .section-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
     }
 
     .section-header h2 {
         margin: 0;
     }
 
-    .fallback-chain h3 {
-        color: #2c3e50;
+    .section-description {
+        color: #6c757d;
         margin-bottom: 1.5rem;
-        font-size: 1.1rem;
+        font-size: 0.95rem;
     }
 
-    .chain-items {
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .setting-item {
         display: flex;
         flex-direction: column;
-        gap: 0;
+        gap: 0.5rem;
     }
 
-    .chain-item {
+    .setting-item.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .setting-label {
+        font-weight: 500;
+        color: #2c3e50;
+        font-size: 0.95rem;
+    }
+
+    .providers-list {
         display: flex;
         flex-direction: column;
-        align-items: center;
-    }
-
-    .chain-arrow {
-        font-size: 2rem;
-        color: #667eea;
-        margin: 0.5rem 0;
+        gap: 1rem;
     }
 
     .provider-card {
-        width: 100%;
         background: #f8f9fa;
         border: 2px solid #e9ecef;
         border-radius: 12px;
-        padding: 1.5rem;
-        transition: all 0.3s ease;
-    }
-
-    .provider-card.disabled {
-        opacity: 0.6;
-        background: #f5f5f5;
+        display: flex;
+        transition: all 0.2s;
+        overflow: hidden;
     }
 
     .provider-card:hover {
         border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
     }
 
-    .provider-header {
+    .provider-card.disabled {
+        opacity: 0.6;
+    }
+
+    .drag-handle {
+        background: #e9ecef;
+        padding: 1.5rem 0.75rem;
+        cursor: move;
+        display: flex;
+        align-items: center;
+        color: #6c757d;
+        font-size: 1.2rem;
+    }
+
+    .drag-handle:hover {
+        background: #dee2e6;
+        color: #495057;
+    }
+
+    .provider-content {
+        flex: 1;
+        padding: 1.5rem;
+    }
+
+    .provider-main {
         display: flex;
         justify-content: space-between;
         align-items: start;
-        margin-bottom: 1rem;
     }
 
     .provider-info {
+        flex: 1;
+    }
+
+    .provider-name-row {
         display: flex;
         align-items: center;
         gap: 1rem;
-        flex-wrap: wrap;
+        margin-bottom: 0.5rem;
     }
 
-    .provider-info h4 {
+    .provider-name-row h4 {
         margin: 0;
         color: #2c3e50;
-    }
-
-    .provider-type {
-        padding: 0.25rem 0.75rem;
-        background: #e9ecef;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        color: #6c757d;
+        font-size: 1.1rem;
     }
 
     .status-badge {
@@ -347,6 +456,13 @@
         border-radius: 12px;
         font-size: 0.85rem;
         font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .status-badge i {
+        font-size: 0.5rem;
     }
 
     .status-healthy {
@@ -369,44 +485,83 @@
         color: #6c757d;
     }
 
+    .provider-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .meta-item {
+        font-size: 0.9rem;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .disabled-badge {
+        color: #dc3545;
+    }
+
     .provider-actions {
         display: flex;
         gap: 0.5rem;
     }
 
-    .provider-details {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-        gap: 1rem;
-        padding-top: 1rem;
-        border-top: 1px solid #dee2e6;
+    .btn-icon {
+        background: white;
+        border: 1px solid #dee2e6;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #6c757d;
     }
 
-    .detail-row {
+    .btn-icon:hover {
+        background: #667eea;
+        border-color: #667eea;
+        color: white;
+    }
+
+    .provider-stats {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
         display: flex;
-        flex-direction: column;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
         gap: 0.25rem;
     }
 
-    .detail-row.warning {
+    .stat-item.success {
+        color: #28a745;
+    }
+
+    .stat-item.failure {
         color: #dc3545;
-    }
-
-    .detail-row .label {
-        font-size: 0.85rem;
-        color: #6c757d;
-        font-weight: 500;
-    }
-
-    .detail-row .value {
-        font-size: 0.95rem;
-        color: #2c3e50;
     }
 
     .empty-state {
         text-align: center;
-        padding: 2rem;
+        padding: 3rem 2rem;
         color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        color: #667eea;
+        margin-bottom: 1rem;
     }
 
     .modal-backdrop {
@@ -443,6 +598,13 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+    }
+
+    .modal-header h5 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     .modal-body {
