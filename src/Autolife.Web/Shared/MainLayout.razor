@@ -70,6 +70,7 @@
 @code {
     private bool sidebarCollapsed = false;
     private string currentTheme = "light";
+    private System.Threading.Timer? collapseTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,12 +83,51 @@
         if (firstRender)
         {
             await UpdateTheme();
+            await LoadSidebarState();
         }
     }
 
-    private void ToggleSidebar()
+    private async Task LoadSidebarState()
+    {
+        try
+        {
+            // Load saved sidebar state from localStorage
+            var wasCollapsed = await JS.InvokeAsync<bool?>("eval", "localStorage.getItem('sidebarCollapsed') === 'true'");
+            
+            if (wasCollapsed == true)
+            {
+                // Show sidebar for 1 second, then collapse
+                sidebarCollapsed = false;
+                StateHasChanged();
+                
+                // Auto-collapse after 1 second
+                collapseTimer = new System.Threading.Timer(_ =>
+                {
+                    sidebarCollapsed = true;
+                    InvokeAsync(StateHasChanged);
+                }, null, 1000, Timeout.Infinite);
+            }
+        }
+        catch
+        {
+            // If localStorage not available, start with expanded
+            sidebarCollapsed = false;
+        }
+    }
+
+    private async void ToggleSidebar()
     {
         sidebarCollapsed = !sidebarCollapsed;
+        
+        // Save state to localStorage
+        try
+        {
+            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('sidebarCollapsed', '{sidebarCollapsed.ToString().ToLower()}');");
+        }
+        catch
+        {
+            // Silently fail if localStorage not available
+        }
     }
 
     private async void HandleSettingsChanged()
@@ -127,6 +167,7 @@
     public void Dispose()
     {
         SettingsManager.OnSettingsChanged -= HandleSettingsChanged;
+        collapseTimer?.Dispose();
     }
 }
 
