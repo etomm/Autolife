@@ -20,7 +20,7 @@
             <div class="settings-grid">
                 <div class="setting-item">
                     <label class="setting-label">Theme</label>
-                    <select class="form-control" @bind="currentThemeString" @bind:after="SaveUserSettings">
+                    <select class="form-control" value="@currentThemeString" @onchange="OnThemeChanged">
                         <option value="light">Light</option>
                         <option value="dark">Dark</option>
                         <option value="auto">Auto</option>
@@ -283,28 +283,36 @@
     private System.Threading.Timer? saveMessageTimer;
     private System.Threading.Timer? repoSaveMessageTimer;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        // CRITICAL: Load theme from localStorage FIRST before anything else
-        await LoadThemePreference();
-        
-        // Then load other settings from SettingsManager
+        // Load from SettingsManager synchronously
         userSettings = SettingsManager.GetUserSettings();
         repositorySettings = SettingsManager.GetRepositorySettings();
-        
-        // Update userSettings.Theme to match what we loaded from localStorage
-        userSettings.Theme = currentThemeString.ToLower() switch
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            "auto" => Theme.Auto,
-            "dark" => Theme.Dark,
-            "light" => Theme.Light,
-            _ => Theme.Light
-        };
-        
-        // Mark as initialized so UI can render
-        isInitialized = true;
-        
-        await LoadProviders();
+            // Wait for JS runtime to be ready, then load theme
+            await LoadThemePreference();
+            
+            // Update userSettings.Theme to match what we loaded from localStorage
+            userSettings.Theme = currentThemeString.ToLower() switch
+            {
+                "auto" => Theme.Auto,
+                "dark" => Theme.Dark,
+                "light" => Theme.Light,
+                _ => Theme.Light
+            };
+            
+            // Mark as initialized and re-render with correct theme
+            isInitialized = true;
+            StateHasChanged();
+            
+            // Load providers in background
+            await LoadProviders();
+        }
     }
 
     private async Task LoadThemePreference()
@@ -334,6 +342,54 @@
         }
     }
 
+    private async Task OnThemeChanged(ChangeEventArgs e)
+    {
+        var newTheme = e.Value?.ToString()?.ToLower() ?? "light";
+        
+        // Update immediately
+        currentThemeString = newTheme;
+        
+        // Save and apply
+        await SaveTheme(newTheme);
+        
+        StateHasChanged();
+    }
+
+    private async Task SaveTheme(string theme)
+    {
+        try
+        {
+            // Save to localStorage IMMEDIATELY
+            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('theme', '{theme}');");
+            
+            // Apply theme to document root
+            var resolvedTheme = theme;
+            if (theme == "auto")
+            {
+                var prefersDark = await JS.InvokeAsync<bool>("eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
+                resolvedTheme = prefersDark ? "dark" : "light";
+            }
+            
+            await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme', '{resolvedTheme}');");
+            
+            // Update enum for SettingsManager
+            userSettings.Theme = theme switch
+            {
+                "auto" => Theme.Auto,
+                "dark" => Theme.Dark,
+                "light" => Theme.Light,
+                _ => Theme.Light
+            };
+            
+            SettingsManager.UpdateUserSettings(userSettings);
+            ShowSavedIndicator();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving theme: {ex.Message}");
+        }
+    }
+
     private async Task LoadProviders()
     {
         isLoading = true;
@@ -344,6 +400,7 @@
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -356,27 +413,7 @@
 
     private async void SaveUserSettings()
     {
-        // Convert string back to enum
-        userSettings.Theme = currentThemeString.ToLower() switch
-        {
-            "auto" => Theme.Auto,
-            "dark" => Theme.Dark,
-            "light" => Theme.Light,
-            _ => Theme.Light
-        };
-        
         SettingsManager.UpdateUserSettings(userSettings);
-        
-        // Save theme string to localStorage (not enum value!)
-        try
-        {
-            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('theme', '{currentThemeString}');");
-        }
-        catch
-        {
-            // Silently fail if localStorage not available
-        }
-        
         ShowSavedIndicator();
     }
 
