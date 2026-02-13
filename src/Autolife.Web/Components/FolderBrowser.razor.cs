@@ -122,9 +122,9 @@ public partial class FolderBrowser : IDisposable
 
             if (containerWidth <= 0 || contentWidth <= 0)
             {
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                SwapBreadcrumbs();
+                // No calculation possible, just show everything
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
                 return;
             }
 
@@ -135,17 +135,17 @@ public partial class FolderBrowser : IDisposable
             if (overflow <= 10)
             {
                 // Everything fits
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
             }
             else
             {
                 // Need to add ellipsis and hide segments
-                if (secondaryPathSegments.Count <= 1)
+                if (pathSegments.Count <= 1)
                 {
                     // Only one segment - show it even if it overflows
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                    showEllipsis = false;
+                    visibleLeadingSegments = pathSegments.ToList();
                 }
                 else
                 {
@@ -200,16 +200,11 @@ public partial class FolderBrowser : IDisposable
 
                     Console.WriteLine($"Need to remove {targetRemoval}px, accumulated {accumulatedRemoval}px, keeping {keepCount} segments");
 
-                    secondaryShowEllipsis = true;
-                    secondaryVisibleLeadingSegments = keepCount > 0 
-                        ? secondaryPathSegments.Take(keepCount).ToList() 
+                    showEllipsis = true;
+                    visibleLeadingSegments = keepCount > 0 
+                        ? pathSegments.Take(keepCount).ToList() 
                         : new List<(string, string)>();
                 }
-            }
-
-            if (!_disposed)
-            {
-                SwapBreadcrumbs();
             }
         }
         catch (Exception ex)
@@ -217,30 +212,10 @@ public partial class FolderBrowser : IDisposable
             Console.WriteLine($"Breadcrumb calculation error: {ex.Message}");
             if (!_disposed)
             {
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                SwapBreadcrumbs();
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
             }
         }
-    }
-
-    private void SwapBreadcrumbs()
-    {
-        if (_disposed) return;
-
-        // Copy calculated secondary data to primary (which is always visible)
-        rootPrefix = secondaryRootPrefix;
-        pathSegments = secondaryPathSegments.ToList();
-        visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
-        lastSegment = secondaryLastSegment;
-        showEllipsis = secondaryShowEllipsis;
-        
-        // Clear secondary state for next calculation
-        secondaryRootPrefix = "";
-        secondaryPathSegments.Clear();
-        secondaryVisibleLeadingSegments.Clear();
-        secondaryLastSegment = ("", "");
-        secondaryShowEllipsis = false;
     }
 
     private async Task LoadRoots()
@@ -354,8 +329,17 @@ public partial class FolderBrowser : IDisposable
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
+                // Set PRIMARY breadcrumb immediately (visible)
+                UpdateRootInfo(currentPath, out rootPrefix);
+                BuildPathSegments(currentPath, out pathSegments, out lastSegment);
+                visibleLeadingSegments = pathSegments.ToList();
+                showEllipsis = false;
+                
+                // Set SECONDARY breadcrumb for measurement
                 UpdateRootInfo(currentPath, out secondaryRootPrefix);
                 BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
+                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                secondaryShowEllipsis = false;
 
                 needsCalculation = true;
             }
