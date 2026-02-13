@@ -28,25 +28,25 @@
                 </div>
 
                 <div class="quick-actions">
-                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/knowledge")">
+                    <button class="action-card" @onclick="NavigateToKnowledge">
                         <i class="bi bi-book"></i>
                         <h4>Explore Knowledge</h4>
                         <p>Build your personal knowledge base</p>
                     </button>
 
-                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/documents")">
+                    <button class="action-card" @onclick="NavigateToDocuments">
                         <i class="bi bi-file-earmark-text"></i>
                         <h4>Manage Documents</h4>
                         <p>Upload and organize your files</p>
                     </button>
 
-                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/projects")">
+                    <button class="action-card" @onclick="NavigateToProjects">
                         <i class="bi bi-kanban"></i>
                         <h4>Start a Project</h4>
                         <p>Track your ongoing work</p>
                     </button>
 
-                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/settings")">
+                    <button class="action-card" @onclick="NavigateToSettings">
                         <i class="bi bi-gear"></i>
                         <h4>Configure Settings</h4>
                         <p>Set up AI models and preferences</p>
@@ -86,7 +86,13 @@
         // TODO: Check actual system state from database/storage
         // For now, assuming empty system
         isSystemEmpty = (knowledgeCount + documentsCount + projectsCount) == 0;
+        await Task.CompletedTask;
     }
+
+    private void NavigateToKnowledge() => Navigation.NavigateTo("/knowledge");
+    private void NavigateToDocuments() => Navigation.NavigateTo("/documents");
+    private void NavigateToProjects() => Navigation.NavigateTo("/projects");
+    private void NavigateToSettings() => Navigation.NavigateTo("/settings");
 }
 
 <style>
