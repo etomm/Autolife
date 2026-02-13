@@ -4,6 +4,7 @@
 @using Autolife.Web.Components
 @inject IAIProviderManager ProviderManager
 @inject ISettingsManager SettingsManager
+@inject IJSRuntime JS
 @implements IDisposable
 
 <PageTitle>Settings - Autolife</PageTitle>
@@ -296,9 +297,21 @@
         SaveRepositorySettings();
     }
 
-    private void SaveUserSettings()
+    private async void SaveUserSettings()
     {
         SettingsManager.UpdateUserSettings(userSettings);
+        
+        // Save theme to localStorage for instant persistence (like sidebar state)
+        try
+        {
+            var themeValue = userSettings.Theme.ToString().ToLower();
+            await JS.InvokeVoidAsync("eval", $"localStorage.setItem('theme', '{themeValue}');");
+        }
+        catch
+        {
+            // Silently fail if localStorage not available
+        }
+        
         ShowSavedIndicator();
     }
 
