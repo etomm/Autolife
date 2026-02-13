@@ -21,6 +21,7 @@ public partial class FolderBrowser : IDisposable
     private string parentPath = "";
     private string selectedPath = "";
     private string rootPath = "";
+    private string rootPrefix = "";
     private bool isLoading = false;
     private bool showRootSelection = true;
     private bool canCreateFolder = false;
@@ -38,39 +39,8 @@ public partial class FolderBrowser : IDisposable
     private bool showErrorPopup = false;
     private bool showFullStackTrace = false;
     private ElementReference createInputRef;
-    private ElementReference breadcrumbNavRef;
-    private ElementReference breadcrumbNavSecondaryRef;
-    private ElementReference breadcrumbContentSecondaryRef;
     private System.Threading.Timer? hideErrorTimer;
     private bool _disposed = false;
-
-    // Double-buffering breadcrumb system
-    private bool primaryVisible = true; // Which breadcrumb is currently visible
-    private bool needsCalculation = false;
-    private bool isCalculating = false;
-
-    // Primary breadcrumb state
-    private List<(string segment, string path)> primaryPathSegments = new();
-    private List<(string segment, string path)> primaryVisibleLeadingSegments = new();
-    private (string segment, string path) primaryLastSegment = ("", "");
-    private bool primaryShowEllipsis = false;
-    private string primaryRootPrefix = "";
-
-    // Secondary breadcrumb state
-    private List<(string segment, string path)> secondaryPathSegments = new();
-    private List<(string segment, string path)> secondaryVisibleLeadingSegments = new();
-    private (string segment, string path) secondaryLastSegment = ("", "");
-    private bool secondaryShowEllipsis = false;
-    private string secondaryRootPrefix = "";
-
-    private async Task Log(string message)
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("breadcrumbMeasure.log", message);
-        }
-        catch { }
-    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,223 +51,6 @@ public partial class FolderBrowser : IDisposable
         {
             await NavigateToPath(InitialPath);
         }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_disposed) return;
-
-        if (!showRootSelection && needsCalculation)
-        {
-            await CalculateAndSwapBreadcrumb();
-            needsCalculation = false;
-            isCalculating = false;
-            
-            if (!_disposed)
-            {
-                StateHasChanged();
-            }
-        }
-    }
-
-    private async Task CalculateAndSwapBreadcrumb()
-    {
-        if (_disposed) return;
-
-        try
-        {
-            await Log("=== BREADCRUMB CALCULATION START ===");
-            await Log($"Primary visible: {primaryVisible}");
-            
-            await Task.Delay(10);
-
-            if (_disposed) return;
-
-            // Measure container width (fixed by path box)
-            var containerWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContainerWidth");
-            await Log($"Container width: {containerWidth}px");
-
-            if (_disposed) return;
-
-            // Measure content width from HIDDEN breadcrumb (being prepared)
-            var contentWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContentWidth");
-            await Log($"Content width: {contentWidth}px");
-            
-            if (_disposed) return;
-
-            // Get references to which is which
-            var hiddenSegments = primaryVisible ? secondaryPathSegments : primaryPathSegments;
-            await Log($"Hidden breadcrumb has {hiddenSegments.Count} segments");
-            for (int i = 0; i < hiddenSegments.Count; i++)
-            {
-                await Log($"  Segment {i}: {hiddenSegments[i].segment}");
-            }
-
-            if (containerWidth <= 0 || contentWidth <= 0)
-            {
-                await Log("⚠️ Invalid measurements, showing everything");
-                // No calculation possible, just show everything
-                if (primaryVisible)
-                {
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-                else
-                {
-                    primaryShowEllipsis = false;
-                    primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                }
-                SwapBreadcrumbs();
-                await Log("=== BREADCRUMB CALCULATION END (invalid measurements) ===");
-                return;
-            }
-
-            var overflow = contentWidth - containerWidth;
-            await Log($"Overflow: {overflow}px (container: {containerWidth}px, content: {contentWidth}px)");
-
-            // Small margin for safety
-            if (overflow <= 10)
-            {
-                await Log("✅ Everything fits, no ellipsis needed");
-                // Everything fits
-                if (primaryVisible)
-                {
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-                else
-                {
-                    primaryShowEllipsis = false;
-                    primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                }
-            }
-            else
-            {
-                await Log($"❌ Content overflows by {overflow}px, need ellipsis");
-                // Need to add ellipsis and hide segments
-                if (hiddenSegments.Count <= 1)
-                {
-                    await Log("Only 1 segment, showing it even if it overflows");
-                    // Only one segment - show it even if it overflows
-                    if (primaryVisible)
-                    {
-                        secondaryShowEllipsis = false;
-                        secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                    }
-                    else
-                    {
-                        primaryShowEllipsis = false;
-                        primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                    }
-                }
-                else
-                {
-                    await Log($"Multiple segments ({hiddenSegments.Count}), measuring individual widths...");
-                    // Measure individual segment widths from the hidden breadcrumb
-                    var segmentWidths = new List<double>();
-                    
-                    for (int i = 0; i < hiddenSegments.Count - 1; i++) // -1 to exclude last segment
-                    {
-                        if (_disposed) return;
-
-                        var width = await JS.InvokeAsync<double>("breadcrumbMeasure.getSegmentWidth", i);
-                        
-                        segmentWidths.Add(width);
-                        await Log($"  Segment {i} '{hiddenSegments[i].segment}': {width}px");
-                    }
-
-                    if (_disposed) return;
-
-                    // Calculate how many segments to remove
-                    var ellipsisWidth = 50.0; // Approximate width of ellipsis button + separator
-                    var targetRemoval = overflow + ellipsisWidth;
-                    var accumulatedRemoval = 0.0;
-                    var keepCount = 0;
-
-                    await Log($"Target removal: {targetRemoval}px (overflow {overflow}px + ellipsis {ellipsisWidth}px)");
-
-                    // Remove segments from the beginning (after root) until we've removed enough
-                    for (int i = 0; i < segmentWidths.Count; i++)
-                    {
-                        if (accumulatedRemoval < targetRemoval)
-                        {
-                            accumulatedRemoval += segmentWidths[i];
-                            await Log($"  Removing segment {i}, accumulated: {accumulatedRemoval}px");
-                        }
-                        else
-                        {
-                            keepCount = i;
-                            await Log($"  Stopping at segment {i}, keeping {keepCount} segments");
-                            break;
-                        }
-                    }
-
-                    // If we went through all segments and still need more removal, keep 0
-                    if (keepCount == 0 && accumulatedRemoval < targetRemoval)
-                    {
-                        await Log("  Removed all segments, keeping 0");
-                    }
-
-                    await Log($"✂️ Final decision: show ellipsis=true, keep {keepCount} leading segments out of {hiddenSegments.Count - 1}");
-
-                    if (primaryVisible)
-                    {
-                        secondaryShowEllipsis = true;
-                        secondaryVisibleLeadingSegments = keepCount > 0 
-                            ? secondaryPathSegments.Take(keepCount).ToList() 
-                            : new List<(string, string)>();
-                        await Log($"Secondary: ellipsis={secondaryShowEllipsis}, visible segments={secondaryVisibleLeadingSegments.Count}");
-                    }
-                    else
-                    {
-                        primaryShowEllipsis = true;
-                        primaryVisibleLeadingSegments = keepCount > 0 
-                            ? primaryPathSegments.Take(keepCount).ToList() 
-                            : new List<(string, string)>();
-                        await Log($"Primary: ellipsis={primaryShowEllipsis}, visible segments={primaryVisibleLeadingSegments.Count}");
-                    }
-                }
-            }
-
-            if (!_disposed)
-            {
-                await Log("🔄 Swapping breadcrumbs...");
-                SwapBreadcrumbs();
-                await Log($"After swap - Primary visible: {primaryVisible}");
-                await Log($"Primary: ellipsis={primaryShowEllipsis}, segments={primaryPathSegments.Count}, visible={primaryVisibleLeadingSegments.Count}");
-                await Log($"Secondary: ellipsis={secondaryShowEllipsis}, segments={secondaryPathSegments.Count}, visible={secondaryVisibleLeadingSegments.Count}");
-            }
-            await Log("=== BREADCRUMB CALCULATION END ===");
-        }
-        catch (Exception ex)
-        {
-            await Log($"🔴 Breadcrumb calculation error: {ex.Message}");
-            await Log($"Stack: {ex.StackTrace}");
-            if (!_disposed)
-            {
-                // On error, just show everything in the hidden breadcrumb
-                if (primaryVisible)
-                {
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-                else
-                {
-                    primaryShowEllipsis = false;
-                    primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                }
-                SwapBreadcrumbs();
-            }
-        }
-    }
-
-    private void SwapBreadcrumbs()
-    {
-        if (_disposed) return;
-
-        // Just swap which breadcrumb is visible
-        // DON'T clear the now-hidden one - it stays for display until next navigation
-        primaryVisible = !primaryVisible;
     }
 
     private async Task LoadRoots()
@@ -358,22 +111,10 @@ public partial class FolderBrowser : IDisposable
         currentPath = "";
         selectedPath = "";
         rootPath = "";
+        rootPrefix = "";
         directories.Clear();
         canCreateFolder = false;
-        primaryPathSegments.Clear();
-        primaryVisibleLeadingSegments.Clear();
-        primaryLastSegment = ("", "");
-        primaryShowEllipsis = false;
-        primaryRootPrefix = "";
-        secondaryPathSegments.Clear();
-        secondaryVisibleLeadingSegments.Clear();
-        secondaryLastSegment = ("", "");
-        secondaryShowEllipsis = false;
-        secondaryRootPrefix = "";
-        primaryVisible = true;
         showCreateInline = false;
-        needsCalculation = false;
-        isCalculating = false;
         ClearError();
         ClearCreateError();
         StateHasChanged();
@@ -399,7 +140,6 @@ public partial class FolderBrowser : IDisposable
         }
 
         isLoading = true;
-        isCalculating = true;
         ClearError();
         ClearCreateError();
         showRootSelection = false;
@@ -416,42 +156,17 @@ public partial class FolderBrowser : IDisposable
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                // Clear and populate the HIDDEN breadcrumb (for preparation)
-                if (primaryVisible)
-                {
-                    // Primary is visible, clear and prepare secondary (hidden)
-                    secondaryRootPrefix = "";
-                    secondaryPathSegments.Clear();
-                    secondaryVisibleLeadingSegments.Clear();
-                    secondaryLastSegment = ("", "");
-                    secondaryShowEllipsis = false;
-                    
-                    UpdateRootInfo(currentPath, out secondaryRootPrefix);
-                    BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-                else
-                {
-                    // Secondary is visible, clear and prepare primary (hidden)
-                    primaryRootPrefix = "";
-                    primaryPathSegments.Clear();
-                    primaryVisibleLeadingSegments.Clear();
-                    primaryLastSegment = ("", "");
-                    primaryShowEllipsis = false;
-                    
-                    UpdateRootInfo(currentPath, out primaryRootPrefix);
-                    BuildPathSegments(currentPath, out primaryPathSegments, out primaryLastSegment);
-                    primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                }
-
-                needsCalculation = true;
+                // Extract root prefix and build path segments
+                ExtractRootInfo(currentPath);
+                var segments = BuildPathSegments(currentPath);
+                
+                // Send to client-side JavaScript for rendering
+                await UpdateClientBreadcrumb(rootPrefix, rootPath, segments);
             }
         }
         catch (Exception ex)
         {
             SetError("Cannot access directory", ex.Message);
-            needsCalculation = false;
-            isCalculating = false;
         }
         finally
         {
@@ -463,18 +178,18 @@ public partial class FolderBrowser : IDisposable
         }
     }
 
-    private void UpdateRootInfo(string path, out string outRootPrefix)
+    private void ExtractRootInfo(string path)
     {
         if (string.IsNullOrEmpty(path))
         {
-            outRootPrefix = "";
+            rootPrefix = "";
             rootPath = "";
             return;
         }
 
         if (isWindows && path.StartsWith("\\\\"))
         {
-            outRootPrefix = "Network";
+            rootPrefix = "Network";
             var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2)
             {
@@ -491,33 +206,33 @@ public partial class FolderBrowser : IDisposable
         }
         else if (isWindows && path.Length >= 2 && path[1] == ':')
         {
-            outRootPrefix = path.Substring(0, 2).ToUpper();
-            rootPath = outRootPrefix + "\\";
+            rootPrefix = path.Substring(0, 2).ToUpper();
+            rootPath = rootPrefix + "\\";
         }
         else if (path.StartsWith("/"))
         {
-            outRootPrefix = "/";
+            rootPrefix = "/";
             rootPath = "/";
         }
         else
         {
-            outRootPrefix = "";
+            rootPrefix = "";
             rootPath = "";
         }
     }
 
-    private void BuildPathSegments(string currentPathToBuild, out List<(string segment, string path)> segments, out (string segment, string path) last)
+    private List<BreadcrumbSegment> BuildPathSegments(string fullPath)
     {
-        segments = new();
-        last = ("", "");
-
-        if (string.IsNullOrEmpty(currentPathToBuild))
+        var segments = new List<BreadcrumbSegment>();
+        
+        if (string.IsNullOrEmpty(fullPath))
         {
-            return;
+            return segments;
         }
 
-        var path = currentPathToBuild;
+        var path = fullPath;
         
+        // Strip root prefix
         if (isWindows && path.Length >= 2 && path[1] == ':')
         {
             path = path.Substring(2).TrimStart('\\', '/');
@@ -541,38 +256,41 @@ public partial class FolderBrowser : IDisposable
 
         if (string.IsNullOrEmpty(path))
         {
-            return;
+            return segments;
         }
 
         var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = currentPathToBuild.Substring(0, currentPathToBuild.Length - path.Length);
+        var accumulated = fullPath.Substring(0, fullPath.Length - path.Length);
 
         foreach (var part in pathParts)
         {
             accumulated += part + System.IO.Path.DirectorySeparatorChar;
-            segments.Add((part, accumulated.TrimEnd(System.IO.Path.DirectorySeparatorChar)));
+            segments.Add(new BreadcrumbSegment
+            {
+                Label = part,
+                Path = accumulated.TrimEnd(System.IO.Path.DirectorySeparatorChar)
+            });
         }
 
-        if (segments.Count > 0)
-        {
-            last = segments[^1];
-        }
+        return segments;
     }
 
-    private async Task NavigateUpOneFolder()
+    private async Task UpdateClientBreadcrumb(string prefix, string prefixPath, List<BreadcrumbSegment> segments)
     {
-        if (_disposed) return;
-
-        var currentSegments = primaryVisible ? primaryPathSegments : secondaryPathSegments;
-        
-        if (currentSegments.Count >= 2)
+        try
         {
-            var parentSegment = currentSegments[currentSegments.Count - 2];
-            await NavigateToPath(parentSegment.path);
+            var pathData = new
+            {
+                rootPrefix = prefix,
+                rootPath = prefixPath,
+                segments = segments.Select(s => new { label = s.Label, path = s.Path }).ToArray()
+            };
+            
+            await JS.InvokeVoidAsync("breadcrumbManager.updateBreadcrumb", pathData);
         }
-        else if (currentSegments.Count == 1)
+        catch (Exception ex)
         {
-            await NavigateToRoot();
+            Console.WriteLine($"Error updating breadcrumb: {ex.Message}");
         }
     }
 
@@ -809,5 +527,11 @@ public partial class FolderBrowser : IDisposable
         public string? ParentPath { get; set; }
         public List<DirectoryInfo> Directories { get; set; } = new();
         public bool CanCreateFolder { get; set; }
+    }
+
+    private class BreadcrumbSegment
+    {
+        public string Label { get; set; } = "";
+        public string Path { get; set; } = "";
     }
 }
