@@ -20,7 +20,6 @@ public partial class FolderBrowser : IDisposable
     private string currentPath = "";
     private string parentPath = "";
     private string selectedPath = "";
-    private string rootPrefix = "";
     private string rootPath = "";
     private bool isLoading = false;
     private bool showRootSelection = true;
@@ -103,28 +102,17 @@ public partial class FolderBrowser : IDisposable
             if (_disposed) return;
 
             // Measure container width (fixed by path box)
-            var containerWidth = await JS.InvokeAsync<double>("eval", @"
-                (function() {
-                    var container = document.querySelector('.breadcrumb-nav:not(.hidden)');
-                    return container ? container.offsetWidth : 0;
-                })()
-            ");
+            var containerWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContainerWidth");
 
             if (_disposed) return;
 
             // Measure content width from HIDDEN breadcrumb (being prepared)
-            var contentWidth = await JS.InvokeAsync<double>("eval", @"
-                (function() {
-                    var container = document.querySelector('.breadcrumb-nav.hidden .breadcrumb-content');
-                    return container ? container.scrollWidth : 0;
-                })()
-            ");
+            var contentWidth = await JS.InvokeAsync<double>("breadcrumbMeasure.getContentWidth");
             
             if (_disposed) return;
 
             // Get references to which is which
             var hiddenSegments = primaryVisible ? secondaryPathSegments : primaryPathSegments;
-            var targetSegments = primaryVisible ? "secondary" : "primary";
 
             if (containerWidth <= 0 || contentWidth <= 0)
             {
@@ -187,21 +175,7 @@ public partial class FolderBrowser : IDisposable
                     {
                         if (_disposed) return;
 
-                        var width = await JS.InvokeAsync<double>("eval", $@"
-                            (function() {{
-                                var segment = document.querySelector('.breadcrumb-nav.hidden [data-measure-segment=""{i}""]');
-                                if (!segment) return 0;
-                                
-                                // Find preceding separator
-                                var prev = segment.previousElementSibling;
-                                var sepWidth = 0;
-                                if (prev && prev.hasAttribute('data-measure-sep')) {{
-                                    sepWidth = prev.offsetWidth;
-                                }}
-                                
-                                return segment.offsetWidth + sepWidth;
-                            }})()
-                        ");
+                        var width = await JS.InvokeAsync<double>("breadcrumbMeasure.getSegmentWidth", i);
                         
                         segmentWidths.Add(width);
                         Console.WriteLine($"Segment {i} ({hiddenSegments[i].segment}): {width}px");
@@ -278,28 +252,9 @@ public partial class FolderBrowser : IDisposable
     {
         if (_disposed) return;
 
-        // Swap which breadcrumb is visible
+        // Just swap which breadcrumb is visible
+        // DON'T clear the now-hidden one - it stays for display until next navigation
         primaryVisible = !primaryVisible;
-        
-        // Clear the now-hidden breadcrumb for next use
-        if (primaryVisible)
-        {
-            // Secondary is now hidden, clear it
-            secondaryRootPrefix = "";
-            secondaryPathSegments.Clear();
-            secondaryVisibleLeadingSegments.Clear();
-            secondaryLastSegment = ("", "");
-            secondaryShowEllipsis = false;
-        }
-        else
-        {
-            // Primary is now hidden, clear it
-            primaryRootPrefix = "";
-            primaryPathSegments.Clear();
-            primaryVisibleLeadingSegments.Clear();
-            primaryLastSegment = ("", "");
-            primaryShowEllipsis = false;
-        }
     }
 
     private async Task LoadRoots()
@@ -359,7 +314,6 @@ public partial class FolderBrowser : IDisposable
         showRootSelection = true;
         currentPath = "";
         selectedPath = "";
-        rootPrefix = "";
         rootPath = "";
         directories.Clear();
         canCreateFolder = false;
@@ -419,22 +373,32 @@ public partial class FolderBrowser : IDisposable
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                // Populate the HIDDEN breadcrumb (for preparation)
+                // Clear and populate the HIDDEN breadcrumb (for preparation)
                 if (primaryVisible)
                 {
-                    // Primary is visible, prepare secondary (hidden)
+                    // Primary is visible, clear and prepare secondary (hidden)
+                    secondaryRootPrefix = "";
+                    secondaryPathSegments.Clear();
+                    secondaryVisibleLeadingSegments.Clear();
+                    secondaryLastSegment = ("", "");
+                    secondaryShowEllipsis = false;
+                    
                     UpdateRootInfo(currentPath, out secondaryRootPrefix);
                     BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
                     secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                    secondaryShowEllipsis = false;
                 }
                 else
                 {
-                    // Secondary is visible, prepare primary (hidden)
+                    // Secondary is visible, clear and prepare primary (hidden)
+                    primaryRootPrefix = "";
+                    primaryPathSegments.Clear();
+                    primaryVisibleLeadingSegments.Clear();
+                    primaryLastSegment = ("", "");
+                    primaryShowEllipsis = false;
+                    
                     UpdateRootInfo(currentPath, out primaryRootPrefix);
                     BuildPathSegments(currentPath, out primaryPathSegments, out primaryLastSegment);
                     primaryVisibleLeadingSegments = primaryPathSegments.ToList();
-                    primaryShowEllipsis = false;
                 }
 
                 needsCalculation = true;
