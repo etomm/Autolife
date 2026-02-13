@@ -272,9 +272,39 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Load from SettingsManager first
         userSettings = SettingsManager.GetUserSettings();
         repositorySettings = SettingsManager.GetRepositorySettings();
+        
+        // Override theme with localStorage preference if available
+        await LoadThemePreference();
+        
         await LoadProviders();
+    }
+
+    private async Task LoadThemePreference()
+    {
+        try
+        {
+            // Read the actual preference from localStorage (auto/light/dark)
+            var storedTheme = await JS.InvokeAsync<string?>("eval", "localStorage.getItem('theme')");
+            
+            if (!string.IsNullOrEmpty(storedTheme))
+            {
+                // Parse the stored preference
+                userSettings.Theme = storedTheme.ToLower() switch
+                {
+                    "auto" => Theme.Auto,
+                    "dark" => Theme.Dark,
+                    "light" => Theme.Light,
+                    _ => Theme.Light
+                };
+            }
+        }
+        catch
+        {
+            // Keep SettingsManager value if localStorage fails
+        }
     }
 
     private async Task LoadProviders()
