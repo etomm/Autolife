@@ -2,7 +2,7 @@ using Autolife.Core.Models;
 
 namespace Autolife.Core.Interfaces;
 
-public interface IProjectService
+public interface IProjectRepository
 {
     Task<Project?> GetByIdAsync(Guid id);
     Task<IEnumerable<Project>> GetAllAsync();
@@ -10,8 +10,5 @@ public interface IProjectService
     Task<Project> CreateAsync(Project project);
     Task<Project> UpdateAsync(Project project);
     Task DeleteAsync(Guid id);
-    Task<Project> AddTaskAsync(Guid projectId, ProjectTask task);
-    Task<Project> CompleteTaskAsync(Guid projectId, Guid taskId);
-    Task<Project> GenerateAiPlanAsync(Project project);
-    Task<int> CalculateProgressAsync(Guid projectId);
+    Task<int> GetActiveProjectsCountAsync();
 }

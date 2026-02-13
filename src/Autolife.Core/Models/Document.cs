@@ -1,15 +1,23 @@
 namespace Autolife.Core.Models;
 
-public class Document
+public class Document : BaseEntity
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
+    public string OriginalFileName { get; set; } = string.Empty;
     public string FilePath { get; set; } = string.Empty;
-    public string FileType { get; set; } = string.Empty;
-    public long FileSize { get; set; }
+    public string GitPath { get; set; } = string.Empty;
+    public string GitCommitHash { get; set; } = string.Empty;
+    public long SizeInBytes { get; set; }
+    public string MimeType { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
-    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+    
+    // Relationships
     public Guid? ProjectId { get; set; }
     public List<Guid> RelatedKnowledgeIds { get; set; } = new();
-    public string Description { get; set; } = string.Empty;
+    
+    // AI Generated Fields
+    public string AiExtractedText { get; set; } = string.Empty;
+    public string AiGeneratedSummary { get; set; } = string.Empty;
+    public List<string> AiSuggestedCategories { get; set; } = new();
 }
