@@ -50,15 +50,88 @@
                     </div>
                     @if (canCreateFolder)
                     {
-                        <button type="button" class="btn-new-folder" @onclick="ShowCreateFolderDialog" title="New Folder">
-                            <i class="bi bi-folder-plus"></i>
-                        </button>
+                        @if (showCreateInline)
+                        {
+                            <!-- Inline folder creation with error state -->
+                            <div class="inline-create-container @(createError ? "error" : "")">
+                                <input type="text" 
+                                       class="inline-create-input" 
+                                       @bind="newFolderName" 
+                                       @bind:event="oninput"
+                                       placeholder="Folder name" 
+                                       @onkeyup="HandleCreateFolderKeyUp"
+                                       @ref="createInputRef" />
+                                <button type="button" 
+                                        class="btn-inline-create" 
+                                        @onclick="CreateFolder" 
+                                        disabled="@string.IsNullOrWhiteSpace(newFolderName)">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn-inline-cancel" 
+                                        @onclick="CancelInlineCreate">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                                
+                                @if (createError)
+                                {
+                                    <!-- Error overlay within path box -->
+                                    <div class="create-error-overlay">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                        <span>@createErrorMessage</span>
+                                        <button type="button" 
+                                                class="btn-error-info"
+                                                @onmouseenter="ShowErrorDetails"
+                                                @onmouseleave="HideErrorDetails">
+                                            <i class="bi bi-question-circle"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn-new-folder" @onclick="ShowInlineCreate" title="New Folder">
+                                <i class="bi bi-folder-plus"></i>
+                            </button>
+                        }
                     }
                 </div>
             }
         </div>
 
-        <!-- Error Display - Inline -->
+        <!-- Error Details Popup (hover on question mark) -->
+        @if (showErrorPopup && createError)
+        {
+            <div class="error-details-popup @(showFullStackTrace ? "expanded" : "")"
+                 @onmouseenter="() => showErrorPopup = true"
+                 @onmouseleave="HideErrorDetails">
+                <div class="error-popup-header">
+                    <strong>Error Details</strong>
+                </div>
+                <div class="error-popup-body">
+                    <p class="error-message">@createErrorDetails</p>
+                    @if (!showFullStackTrace)
+                    {
+                        <button type="button" class="btn-more-details" @onclick="ToggleStackTrace">
+                            <i class="bi bi-chevron-down"></i> More details
+                        </button>
+                    }
+                    @if (showFullStackTrace && !string.IsNullOrEmpty(createStackTrace))
+                    {
+                        <div class="stack-trace">
+                            <strong>Stack Trace:</strong>
+                            <pre>@createStackTrace</pre>
+                        </div>
+                        <button type="button" class="btn-less-details" @onclick="ToggleStackTrace">
+                            <i class="bi bi-chevron-up"></i> Less details
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Error Display - Inline (for general browsing errors) -->
         @if (!string.IsNullOrEmpty(errorMessage))
         {
             <div class="error-inline">
@@ -160,36 +233,6 @@
     </div>
 </div>
 
-@if (showCreateDialog)
-{
-    <div class="modal-backdrop-inner" @onclick="CloseCreateDialog"></div>
-    <div class="create-folder-dialog" @onclick:stopPropagation="true">
-        <h6>Create New Folder</h6>
-        <input type="text" class="form-control @(createError ? "is-invalid" : "")" @bind="newFolderName" placeholder="Folder name" @onkeyup="HandleCreateFolderKeyUp" />
-        @if (createError)
-        {
-            <div class="error-inline small">
-                <i class="bi bi-exclamation-circle"></i>
-                <span>@createErrorMessage</span>
-            </div>
-        }
-        <div class="dialog-buttons">
-            <button type="button" class="btn btn-sm btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
-            <button type="button" class="btn btn-sm @(createError ? "btn-danger" : "btn-primary")" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">
-                @if (createError)
-                {
-                    <i class="bi bi-exclamation-triangle"></i>
-                    <span>Failed</span>
-                }
-                else
-                {
-                    <span>Create</span>
-                }
-            </button>
-        </div>
-    </div>
-}
-
 @code {
     [Parameter] public string Title { get; set; } = "Select Folder";
     [Parameter] public string InitialPath { get; set; } = "";
@@ -204,7 +247,6 @@
     private string pathPrefix = "";
     private bool isLoading = false;
     private bool showRootSelection = true;
-    private bool showCreateDialog = false;
     private bool canCreateFolder = false;
     private string newFolderName = "";
     private string errorMessage = "";
@@ -213,13 +255,18 @@
     private bool showErrorDetails = false;
     private bool createError = false;
     private string createErrorMessage = "";
+    private string createErrorDetails = "";
+    private string createStackTrace = "";
     private bool isWindows = false;
+    private bool showCreateInline = false;
+    private bool showErrorPopup = false;
+    private bool showFullStackTrace = false;
+    private ElementReference createInputRef;
 
     // Path truncation support
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleSegments = new();
     private bool showEllipsis = false;
-    private const int MaxBreadcrumbWidth = 500; // Approximate max pixels for breadcrumb
 
     protected override async Task OnInitializedAsync()
     {
@@ -291,7 +338,9 @@
         pathSegments.Clear();
         visibleSegments.Clear();
         showEllipsis = false;
+        showCreateInline = false;
         ClearError();
+        ClearCreateError();
         StateHasChanged();
     }
 
@@ -299,7 +348,9 @@
     {
         isLoading = true;
         ClearError();
+        ClearCreateError();
         showRootSelection = false;
+        showCreateInline = false;
         StateHasChanged();
 
         try
@@ -311,7 +362,7 @@
                 parentPath = response.ParentPath ?? "";
                 directories = response.Directories;
                 selectedPath = currentPath;
-                canCreateFolder = response.CanCreateFolder;
+                canCreateFolder = response.CanCreateFolder; // Backend verifies write access
                 
                 // Set prefix and calculate segments
                 UpdatePathPrefix(currentPath);
@@ -401,8 +452,6 @@
         }
 
         // Calculate visible segments - show ellipsis if path is too long
-        // Estimate: prefix ~100px, separator ~10px, segment ~80px average, new folder button ~50px
-        // We want to keep last 3-4 segments visible
         const int maxVisibleSegments = 4;
         
         if (pathSegments.Count > maxVisibleSegments)
@@ -433,20 +482,26 @@
         await NavigateToPath(path);
     }
 
-    private void ShowCreateFolderDialog()
+    private async Task ShowInlineCreate()
     {
-        showCreateDialog = true;
+        showCreateInline = true;
         newFolderName = "";
-        createError = false;
-        createErrorMessage = "";
+        ClearCreateError();
         StateHasChanged();
+        
+        // Focus the input
+        try
+        {
+            await JS.InvokeVoidAsync("eval", "setTimeout(() => { const input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
+        }
+        catch { }
     }
 
-    private void CloseCreateDialog()
+    private void CancelInlineCreate()
     {
-        showCreateDialog = false;
-        createError = false;
-        createErrorMessage = "";
+        showCreateInline = false;
+        newFolderName = "";
+        ClearCreateError();
         StateHasChanged();
     }
 
@@ -458,7 +513,7 @@
         }
         else if (e.Key == "Escape")
         {
-            CloseCreateDialog();
+            CancelInlineCreate();
         }
     }
 
@@ -466,8 +521,7 @@
     {
         if (string.IsNullOrWhiteSpace(newFolderName)) return;
 
-        createError = false;
-        createErrorMessage = "";
+        ClearCreateError();
 
         try
         {
@@ -479,22 +533,62 @@
 
             if (response.IsSuccessStatusCode)
             {
-                showCreateDialog = false;
+                showCreateInline = false;
+                newFolderName = "";
                 await NavigateToPath(currentPath); // Refresh
             }
             else
             {
-                createError = true;
-                createErrorMessage = "Cannot create folder here";
+                var errorContent = await response.Content.ReadAsStringAsync();
+                SetCreateError("Cannot create folder", errorContent, "HTTP " + response.StatusCode);
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            createError = true;
-            createErrorMessage = "Creation failed";
+            SetCreateError("Creation failed", ex.Message, ex.StackTrace ?? "No stack trace available");
             StateHasChanged();
         }
+    }
+
+    private void SetCreateError(string message, string details, string stackTrace)
+    {
+        createError = true;
+        createErrorMessage = message;
+        createErrorDetails = details;
+        createStackTrace = stackTrace;
+    }
+
+    private void ClearCreateError()
+    {
+        createError = false;
+        createErrorMessage = "";
+        createErrorDetails = "";
+        createStackTrace = "";
+        showErrorPopup = false;
+        showFullStackTrace = false;
+    }
+
+    private void ShowErrorDetails()
+    {
+        if (createError)
+        {
+            showErrorPopup = true;
+            StateHasChanged();
+        }
+    }
+
+    private void HideErrorDetails()
+    {
+        showErrorPopup = false;
+        showFullStackTrace = false;
+        StateHasChanged();
+    }
+
+    private void ToggleStackTrace()
+    {
+        showFullStackTrace = !showFullStackTrace;
+        StateHasChanged();
     }
 
     private void SetError(string summary, string details)
@@ -607,11 +701,13 @@
         flex-direction: column;
         padding: 1rem;
         gap: 1rem;
+        position: relative;
     }
 
     .current-path-container {
         min-height: 60px;
         max-height: 60px;
+        position: relative;
     }
 
     .path-placeholder {
@@ -639,6 +735,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 0.5rem;
+        position: relative;
     }
 
     .breadcrumb-nav {
@@ -739,6 +836,234 @@
         font-size: 1.1rem;
     }
 
+    /* Inline folder creation */
+    .inline-create-container {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-shrink: 0;
+        position: relative;
+    }
+
+    .inline-create-container.error {
+        z-index: 100;
+    }
+
+    .inline-create-input {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        width: 150px;
+        transition: border-color 0.2s;
+    }
+
+    .inline-create-container.error .inline-create-input {
+        border-color: #dc3545;
+    }
+
+    .inline-create-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+    }
+
+    .btn-inline-create,
+    .btn-inline-cancel {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.375rem 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s;
+    }
+
+    .btn-inline-create:hover:not(:disabled) {
+        background: #28a745;
+        border-color: #28a745;
+        color: white;
+    }
+
+    .btn-inline-cancel:hover {
+        background: #dc3545;
+        border-color: #dc3545;
+        color: white;
+    }
+
+    .btn-inline-create:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Create error overlay - expands over other elements */
+    .create-error-overlay {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 0.5rem;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        color: #721c24;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        z-index: 101;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        animation: slideDown 0.2s ease;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-5px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .create-error-overlay i.bi-exclamation-circle {
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .create-error-overlay span {
+        flex: 1;
+    }
+
+    .btn-error-info {
+        background: transparent;
+        border: 1px solid #721c24;
+        color: #721c24;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        padding: 0;
+        flex-shrink: 0;
+    }
+
+    .btn-error-info:hover {
+        background: #721c24;
+        color: white;
+    }
+
+    .btn-error-info i {
+        font-size: 0.75rem;
+    }
+
+    /* Error details popup */
+    .error-details-popup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--bg-secondary);
+        border: 2px solid #dc3545;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        z-index: 1070;
+        max-width: 500px;
+        width: 90%;
+        max-height: 400px;
+        overflow-y: auto;
+        animation: popupAppear 0.2s ease;
+    }
+
+    .error-details-popup.expanded {
+        max-width: 700px;
+        max-height: 600px;
+    }
+
+    @keyframes popupAppear {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+
+    .error-popup-header {
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        color: #dc3545;
+    }
+
+    .error-popup-body {
+        color: var(--text-primary);
+    }
+
+    .error-popup-body .error-message {
+        margin-bottom: 0.75rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .btn-more-details,
+    .btn-less-details {
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        padding: 0.375rem 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+        margin-top: 0.5rem;
+    }
+
+    .btn-more-details:hover,
+    .btn-less-details:hover {
+        background: var(--accent-hover);
+    }
+
+    .stack-trace {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .stack-trace strong {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #dc3545;
+    }
+
+    .stack-trace pre {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        padding: 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
     .error-inline {
         padding: 0.75rem 1rem;
         background: #f8d7da;
@@ -749,12 +1074,6 @@
         align-items: center;
         gap: 0.5rem;
         font-size: 0.9rem;
-    }
-
-    .error-inline.small {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.85rem;
-        margin-top: 0.5rem;
     }
 
     .error-inline i {
@@ -920,55 +1239,5 @@
     .button-group {
         display: flex;
         gap: 0.5rem;
-    }
-
-    .modal-backdrop-inner {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.3);
-        z-index: 1059;
-    }
-
-    .create-folder-dialog {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1060;
-        background: var(--bg-secondary);
-        padding: 1.5rem;
-        border-radius: 12px;
-        box-shadow: 0 4px 24px var(--shadow);
-        min-width: 300px;
-        pointer-events: auto;
-    }
-
-    .create-folder-dialog h6 {
-        margin-bottom: 1rem;
-        color: var(--text-primary);
-    }
-
-    .dialog-buttons {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-        margin-top: 1rem;
-    }
-
-    .is-invalid {
-        border-color: #dc3545 !important;
-    }
-
-    .btn-danger {
-        background-color: #dc3545;
-        border-color: #dc3545;
-    }
-
-    .btn-danger:hover {
-        background-color: #c82333;
-        border-color: #bd2130;
     }
 </style>
