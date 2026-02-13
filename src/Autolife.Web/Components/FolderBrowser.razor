@@ -1,10 +1,10 @@
 @inject HttpClient Http
 @inject IJSRuntime JS
 
-<div class="folder-browser">
+<div class="folder-browser" @onclick:stopPropagation="true">
     <div class="browser-header">
         <h5>@Title</h5>
-        <button class="btn-close" @onclick="OnCancel"></button>
+        <button class="btn-close" type="button" @onclick="HandleCancel"></button>
     </div>
 
     <div class="browser-body">
@@ -22,7 +22,8 @@
                 {
                     @foreach (var (segment, path) in GetPathSegments())
                     {
-                        <button class="breadcrumb-item" @onclick="() => NavigateToPath(path)">
+                        var capturedPath = path;
+                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                             @segment
                         </button>
                         <span class="breadcrumb-separator">/</span>
@@ -43,9 +44,10 @@
                 {
                     @foreach (var root in roots)
                     {
-                        <div class="folder-item" @onclick="() => SelectRoot(root.Path)">
+                        var capturedRoot = root;
+                        <div class="folder-item" @onclick="async () => await SelectRoot(capturedRoot.Path)">
                             <i class="bi bi-hdd"></i>
-                            <span class="folder-name">@root.Name</span>
+                            <span class="folder-name">@capturedRoot.Name</span>
                             <i class="bi bi-chevron-right"></i>
                         </div>
                     }
@@ -64,7 +66,7 @@
                 {
                     @if (!string.IsNullOrEmpty(parentPath))
                     {
-                        <div class="folder-item" @onclick="() => NavigateToPath(parentPath)">
+                        <div class="folder-item" @onclick="async () => await NavigateToPath(parentPath)">
                             <i class="bi bi-arrow-up"></i>
                             <span class="folder-name">..</span>
                         </div>
@@ -72,11 +74,12 @@
 
                     @foreach (var dir in directories)
                     {
-                        <div class="folder-item @(selectedPath == dir.Path ? "selected" : "") @(dir.IsAccessible ? "" : "disabled")"
-                             @onclick="() => SelectDirectory(dir.Path)">
-                            <i class="bi @(dir.IsAccessible ? "bi-folder" : "bi-folder-x")"></i>
-                            <span class="folder-name">@dir.Name</span>
-                            @if (!dir.IsAccessible)
+                        var capturedDir = dir;
+                        <div class="folder-item @(selectedPath == capturedDir.Path ? "selected" : "") @(capturedDir.IsAccessible ? "" : "disabled")"
+                             @onclick="async () => await SelectDirectory(capturedDir.Path)">
+                            <i class="bi @(capturedDir.IsAccessible ? "bi-folder" : "bi-folder-x")"></i>
+                            <span class="folder-name">@capturedDir.Name</span>
+                            @if (!capturedDir.IsAccessible)
                             {
                                 <span class="access-denied">Access Denied</span>
                             }
@@ -96,12 +99,12 @@
 
         <!-- Actions -->
         <div class="browser-actions">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="ShowCreateFolderDialog">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ShowCreateFolderDialog">
                 <i class="bi bi-folder-plus"></i> New Folder
             </button>
             @if (!showRootSelection)
             {
-                <button class="btn btn-sm btn-outline-secondary" @onclick="ShowRoots">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ShowRoots">
                     <i class="bi bi-hdd"></i> Change Root
                 </button>
             }
@@ -113,21 +116,21 @@
             <strong>Selected:</strong> @(selectedPath ?? "None")
         </div>
         <div class="button-group">
-            <button class="btn btn-secondary" @onclick="OnCancel">Cancel</button>
-            <button class="btn btn-primary" @onclick="ConfirmSelection" disabled="@string.IsNullOrEmpty(selectedPath)">Select</button>
+            <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+            <button type="button" class="btn btn-primary" @onclick="ConfirmSelection" disabled="@string.IsNullOrEmpty(selectedPath)">Select</button>
         </div>
     </div>
 </div>
 
 @if (showCreateDialog)
 {
-    <div class="modal-backdrop" @onclick="() => showCreateDialog = false"></div>
-    <div class="create-folder-dialog">
+    <div class="modal-backdrop-inner" @onclick="CloseCreateDialog"></div>
+    <div class="create-folder-dialog" @onclick:stopPropagation="true">
         <h6>Create New Folder</h6>
-        <input type="text" class="form-control" @bind="newFolderName" placeholder="Folder name" />
+        <input type="text" class="form-control" @bind="newFolderName" placeholder="Folder name" @onkeyup="HandleCreateFolderKeyUp" />
         <div class="dialog-buttons">
-            <button class="btn btn-sm btn-secondary" @onclick="() => showCreateDialog = false">Cancel</button>
-            <button class="btn btn-sm btn-primary" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">Create</button>
+            <button type="button" class="btn btn-sm btn-secondary" @onclick="CloseCreateDialog">Cancel</button>
+            <button type="button" class="btn btn-sm btn-primary" @onclick="CreateFolder" disabled="@string.IsNullOrWhiteSpace(newFolderName)">Create</button>
         </div>
     </div>
 }
@@ -175,6 +178,7 @@
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -189,6 +193,7 @@
         currentPath = "";
         selectedPath = "";
         directories.Clear();
+        StateHasChanged();
     }
 
     private async Task NavigateToPath(string path)
@@ -196,6 +201,7 @@
         isLoading = true;
         errorMessage = "";
         showRootSelection = false;
+        StateHasChanged();
 
         try
         {
@@ -215,13 +221,14 @@
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 
-    private void SelectDirectory(string path)
+    private async Task SelectDirectory(string path)
     {
         selectedPath = path;
-        NavigateToPath(path);
+        await NavigateToPath(path);
     }
 
     private List<(string segment, string path)> GetPathSegments()
@@ -245,6 +252,25 @@
     {
         showCreateDialog = true;
         newFolderName = "";
+        StateHasChanged();
+    }
+
+    private void CloseCreateDialog()
+    {
+        showCreateDialog = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleCreateFolderKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newFolderName))
+        {
+            await CreateFolder();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseCreateDialog();
+        }
     }
 
     private async Task CreateFolder()
@@ -267,20 +293,25 @@
             else
             {
                 errorMessage = "Failed to create folder";
+                StateHasChanged();
             }
         }
         catch (Exception ex)
         {
             errorMessage = $"Error: {ex.Message}";
+            StateHasChanged();
         }
     }
 
     private async Task ConfirmSelection()
     {
-        await OnPathSelected.InvokeAsync(selectedPath);
+        if (!string.IsNullOrEmpty(selectedPath))
+        {
+            await OnPathSelected.InvokeAsync(selectedPath);
+        }
     }
 
-    private async Task OnCancel()
+    private async Task HandleCancel()
     {
         await OnCancelled.InvokeAsync();
     }
@@ -317,6 +348,9 @@
         background: var(--bg-secondary);
         border-radius: 12px;
         box-shadow: 0 4px 24px var(--shadow);
+        position: relative;
+        z-index: 1051;
+        pointer-events: auto;
     }
 
     .browser-header {
@@ -330,6 +364,24 @@
     .browser-header h5 {
         margin: 0;
         color: var(--text-primary);
+    }
+
+    .btn-close {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 0.25rem 0.5rem;
+        line-height: 1;
+    }
+
+    .btn-close:hover {
+        color: var(--text-primary);
+    }
+
+    .btn-close::before {
+        content: "×";
     }
 
     .browser-body {
@@ -453,6 +505,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        margin-right: 1rem;
     }
 
     .button-group {
@@ -466,6 +519,16 @@
         color: var(--text-secondary);
     }
 
+    .modal-backdrop-inner {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 1059;
+    }
+
     .create-folder-dialog {
         position: fixed;
         top: 50%;
@@ -477,6 +540,7 @@
         border-radius: 12px;
         box-shadow: 0 4px 24px var(--shadow);
         min-width: 300px;
+        pointer-events: auto;
     }
 
     .create-folder-dialog h6 {
@@ -489,5 +553,17 @@
         justify-content: flex-end;
         gap: 0.5rem;
         margin-top: 1rem;
+    }
+
+    .alert {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .alert-danger {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
     }
 </style>
