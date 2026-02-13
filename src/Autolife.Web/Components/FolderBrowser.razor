@@ -22,16 +22,15 @@
                         <i class="bi bi-chevron-left"></i>
                     </button>
 
-                    <!-- Primary breadcrumb container (managed by JS) -->
-                    <div class="breadcrumb-nav" data-buffer="primary" style="visibility: visible; position: relative;">
-                        <div class="breadcrumb-content">
+                    <!-- Breadcrumb container (always visible, position: relative) -->
+                    <div class="breadcrumb-nav">
+                        <!-- Primary content (initially visible) -->
+                        <div class="breadcrumb-content" data-buffer="primary" style="position: relative; visibility: visible;">
                             <!-- JavaScript will populate this -->
                         </div>
-                    </div>
-
-                    <!-- Secondary breadcrumb container (managed by JS) -->
-                    <div class="breadcrumb-nav" data-buffer="secondary" style="visibility: hidden; position: absolute;">
-                        <div class="breadcrumb-content">
+                        
+                        <!-- Secondary content (initially hidden, absolutely positioned) -->
+                        <div class="breadcrumb-content" data-buffer="secondary" style="position: absolute; visibility: hidden; top: 0; left: 0; right: 0;">
                             <!-- JavaScript will populate this -->
                         </div>
                     </div>
@@ -315,15 +314,7 @@
         flex: 1;
         overflow: hidden;
         min-height: 32px;
-    }
-
-    .breadcrumb-nav[data-buffer="secondary"] {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        pointer-events: none;
+        position: relative;
     }
 
     .breadcrumb-content {
