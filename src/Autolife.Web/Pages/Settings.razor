@@ -2,6 +2,8 @@
 @using Autolife.Core.Interfaces
 @using Autolife.Core.Models
 @inject IAIProviderManager ProviderManager
+@inject ISettingsManager SettingsManager
+@implements IDisposable
 
 <PageTitle>Settings - Autolife</PageTitle>
 
@@ -14,33 +16,41 @@
         <div class="settings-grid">
             <div class="setting-item">
                 <label class="setting-label">Theme</label>
-                <select class="form-control">
-                    <option>Light</option>
-                    <option>Dark</option>
-                    <option>Auto</option>
+                <select class="form-control" @bind="userSettings.Theme" @bind:after="SaveUserSettings">
+                    <option value="@Theme.Light">Light</option>
+                    <option value="@Theme.Dark">Dark</option>
+                    <option value="@Theme.Auto">Auto</option>
                 </select>
             </div>
             <div class="setting-item">
                 <label class="setting-label">Language</label>
-                <select class="form-control">
+                <select class="form-control" @bind="userSettings.Language" @bind:after="SaveUserSettings">
                     <option>English</option>
                     <option>Italian</option>
                     <option>Spanish</option>
+                    <option>French</option>
+                    <option>German</option>
                 </select>
             </div>
             <div class="setting-item">
                 <label class="setting-label">Date Format</label>
-                <select class="form-control">
-                    <option>MM/DD/YYYY</option>
-                    <option>DD/MM/YYYY</option>
-                    <option>YYYY-MM-DD</option>
+                <select class="form-control" @bind="userSettings.DateFormat" @bind:after="SaveUserSettings">
+                    <option value="@DateFormat.MMDDYYYY">MM/DD/YYYY</option>
+                    <option value="@DateFormat.DDMMYYYY">DD/MM/YYYY</option>
+                    <option value="@DateFormat.YYYYMMDD">YYYY-MM-DD</option>
                 </select>
             </div>
             <div class="setting-item">
                 <label class="setting-label">Items per page</label>
-                <input type="number" class="form-control" value="20" min="10" max="100" />
+                <input type="number" class="form-control" @bind="userSettings.ItemsPerPage" @bind:after="SaveUserSettings" min="10" max="100" />
             </div>
         </div>
+        @if (showSavedMessage)
+        {
+            <div class="saved-indicator">
+                <i class="bi bi-check-circle-fill"></i> Settings saved
+            </div>
+        }
     </div>
 
     <!-- AI Providers Section -->
@@ -134,30 +144,36 @@
         <div class="settings-grid">
             <div class="setting-item full-width">
                 <label class="setting-label">Storage Type</label>
-                <select class="form-control">
-                    <option>In-Memory (Default)</option>
-                    <option>Local Git Repository</option>
-                    <option>SQLite Database</option>
-                    <option>PostgreSQL</option>
+                <select class="form-control" @bind="repositorySettings.StorageType" @bind:after="SaveRepositorySettings">
+                    <option value="@StorageType.InMemory">In-Memory (Default)</option>
+                    <option value="@StorageType.LocalGit">Local Git Repository</option>
+                    <option value="@StorageType.SQLite">SQLite Database</option>
+                    <option value="@StorageType.PostgreSQL">PostgreSQL</option>
                 </select>
             </div>
             <div class="setting-item full-width">
                 <label class="setting-label">Local Repository Path</label>
-                <input type="text" class="form-control" placeholder="/path/to/autolife-data" />
+                <input type="text" class="form-control" @bind="repositorySettings.LocalRepositoryPath" @bind:after="SaveRepositorySettings" placeholder="/path/to/autolife-data" />
             </div>
             <div class="setting-item">
                 <label class="setting-label">Auto-commit changes</label>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" checked />
+                    <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoCommit" @bind:after="SaveRepositorySettings" />
                 </div>
             </div>
             <div class="setting-item">
                 <label class="setting-label">Auto-backup</label>
                 <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" />
+                    <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoBackup" @bind:after="SaveRepositorySettings" />
                 </div>
             </div>
         </div>
+        @if (showRepoSavedMessage)
+        {
+            <div class="saved-indicator">
+                <i class="bi bi-check-circle-fill"></i> Repository settings saved
+            </div>
+        }
     </div>
 </div>
 
@@ -223,13 +239,21 @@
 
 @code {
     private List<AIProviderConfig> providers = new();
+    private UserSettings userSettings = new();
+    private RepositorySettings repositorySettings = new();
     private bool isLoading = true;
     private bool showAddDialog = false;
     private bool showEditDialog = false;
+    private bool showSavedMessage = false;
+    private bool showRepoSavedMessage = false;
     private AIProviderConfig editingProvider = new();
+    private System.Threading.Timer? saveMessageTimer;
+    private System.Threading.Timer? repoSaveMessageTimer;
 
     protected override async Task OnInitializedAsync()
     {
+        userSettings = SettingsManager.GetUserSettings();
+        repositorySettings = SettingsManager.GetRepositorySettings();
         await LoadProviders();
     }
 
@@ -244,6 +268,44 @@
         {
             isLoading = false;
         }
+    }
+
+    private void SaveUserSettings()
+    {
+        SettingsManager.UpdateUserSettings(userSettings);
+        ShowSavedIndicator();
+    }
+
+    private void SaveRepositorySettings()
+    {
+        SettingsManager.UpdateRepositorySettings(repositorySettings);
+        ShowRepoSavedIndicator();
+    }
+
+    private void ShowSavedIndicator()
+    {
+        showSavedMessage = true;
+        StateHasChanged();
+        
+        saveMessageTimer?.Dispose();
+        saveMessageTimer = new System.Threading.Timer(_ =>
+        {
+            showSavedMessage = false;
+            InvokeAsync(StateHasChanged);
+        }, null, 2000, Timeout.Infinite);
+    }
+
+    private void ShowRepoSavedIndicator()
+    {
+        showRepoSavedMessage = true;
+        StateHasChanged();
+        
+        repoSaveMessageTimer?.Dispose();
+        repoSaveMessageTimer = new System.Threading.Timer(_ =>
+        {
+            showRepoSavedMessage = false;
+            InvokeAsync(StateHasChanged);
+        }, null, 2000, Timeout.Infinite);
     }
 
     private void EditProvider(AIProviderConfig provider)
@@ -273,7 +335,6 @@
             }
             else
             {
-                // Auto-assign priority based on current count
                 editingProvider.Priority = providers.Any() ? providers.Max(p => p.Priority) + 1 : 0;
                 await ProviderManager.AddProviderAsync(editingProvider);
             }
@@ -311,6 +372,12 @@
         showEditDialog = false;
         editingProvider = new AIProviderConfig { TimeoutSeconds = 30, IsEnabled = true };
     }
+
+    public void Dispose()
+    {
+        saveMessageTimer?.Dispose();
+        repoSaveMessageTimer?.Dispose();
+    }
 }
 
 <style>
@@ -334,6 +401,7 @@
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         margin-bottom: 2rem;
+        position: relative;
     }
 
     .settings-section h2 {
@@ -382,6 +450,26 @@
         font-weight: 500;
         color: #2c3e50;
         font-size: 0.95rem;
+    }
+
+    .saved-indicator {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        background: #d4edda;
+        color: #155724;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .providers-list {

@@ -2,6 +2,7 @@ using Autolife.AI.Services;
 using Autolife.Core.Interfaces;
 using Autolife.Core.Services;
 using Autolife.Storage.Repositories;
+using Autolife.Storage.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,9 @@ builder.Services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
 // Register AI Provider Manager and Fallback AI Service
 builder.Services.AddSingleton<IAIProviderManager, InMemoryAIProviderRepository>();
 builder.Services.AddSingleton<IAiService, FallbackAiService>();
+
+// Register Settings Manager
+builder.Services.AddSingleton<ISettingsManager, InMemorySettingsManager>();
 
 // Register business services
 builder.Services.AddScoped<IKnowledgeService, KnowledgeService>();
