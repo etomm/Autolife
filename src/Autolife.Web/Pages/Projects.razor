@@ -80,7 +80,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Due Date</label>
-                    <input type="date" class="form-control" @bind="dueDate" />
+                    <input type="date" class="form-control" @bind="dueDate" @bind:format="yyyy-MM-dd" />
                 </div>
             </div>
             <div class="modal-footer">
@@ -96,7 +96,7 @@
     private bool isLoading = true;
     private bool showCreateDialog = false;
     private Project newProject = new();
-    private string dueDate = "";
+    private DateTime? dueDate = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -120,9 +120,9 @@
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(dueDate) && DateTime.TryParse(dueDate, out var parsedDate))
+            if (dueDate.HasValue)
             {
-                newProject.DueDate = parsedDate;
+                newProject.DueDate = dueDate.Value;
             }
 
             newProject.StartDate = DateTime.UtcNow;
@@ -131,7 +131,7 @@
             await ProjectService.CreateAsync(newProject);
             showCreateDialog = false;
             newProject = new Project();
-            dueDate = "";
+            dueDate = null;
             await LoadProjects();
         }
         catch (Exception ex)
