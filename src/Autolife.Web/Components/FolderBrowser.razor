@@ -26,10 +26,9 @@
                             <i class="bi bi-chevron-left"></i>
                         </button>
                         
-                        <!-- Root button (Drive or Network) - styled as regular breadcrumb -->
+                        <!-- Root button (Drive or Network) - NO separator before it -->
                         @if (!string.IsNullOrEmpty(rootPrefix))
                         {
-                            <span class="breadcrumb-separator">/</span>
                             <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
                                 @rootPrefix
                             </button>
@@ -78,6 +77,20 @@
                             }
                         }
                     </div>
+
+                    <!-- Hidden measurement container -->
+                    <div class="breadcrumb-measure" @ref="measureContainerRef" style="visibility: hidden; position: absolute; top: -9999px; left: -9999px; white-space: nowrap;">
+                        @if (!string.IsNullOrEmpty(rootPrefix))
+                        {
+                            <button type="button" class="breadcrumb-item" data-measure-root>@rootPrefix</button>
+                        }
+                        @foreach (var (segment, path) in pathSegments)
+                        {
+                            <span class="breadcrumb-separator">/</span>
+                            <button type="button" class="breadcrumb-item" data-measure-segment>@segment</button>
+                        }
+                    </div>
+
                     @if (canCreateFolder)
                     {
                         @if (showCreateInline)
@@ -301,9 +314,10 @@
     private bool showFullStackTrace = false;
     private ElementReference createInputRef;
     private ElementReference breadcrumbNavRef;
+    private ElementReference measureContainerRef;
     private System.Threading.Timer? hideErrorTimer;
 
-    // Path truncation support - will use simple fallback for now
+    // Path truncation support
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleLeadingSegments = new();
     private (string segment, string path) lastSegment = ("", "");
@@ -311,9 +325,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Detect OS
         isWindows = OperatingSystem.IsWindows();
-        
         await LoadRoots();
         
         if (!string.IsNullOrEmpty(InitialPath) && Directory.Exists(InitialPath))
@@ -324,17 +336,120 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!showRootSelection && pathSegments.Count > 0 && !showEllipsis)
+        if (!showRootSelection && pathSegments.Count > 0)
         {
-            // Simple heuristic: if more than 4 segments, truncate
-            if (pathSegments.Count > 4)
+            await CalculateDynamicTruncation();
+        }
+    }
+
+    private async Task CalculateDynamicTruncation()
+    {
+        try
+        {
+            // Get available width in breadcrumb container
+            var containerWidth = await JS.InvokeAsync<double>("eval", 
+                "(function() { var el = document.querySelector('.breadcrumb-nav'); return el ? el.offsetWidth : 0; })()");
+            
+            if (containerWidth <= 0) return;
+
+            // Reserve space for fixed elements
+            var backButtonWidth = 32.0; // Width of back arrow button
+            var ellipsisButtonWidth = 36.0; // Width of .. button
+            var newFolderButtonWidth = canCreateFolder && !showCreateInline ? 60.0 : 0.0;
+            var margins = 50.0; // General margins and gaps
+
+            // Get measurements from invisible container
+            var segmentWidths = await JS.InvokeAsync<double[]>("eval", @"
+                (function() {
+                    var container = document.querySelector('.breadcrumb-measure');
+                    if (!container) return [];
+                    var segments = container.querySelectorAll('[data-measure-segment]');
+                    var widths = [];
+                    segments.forEach(function(seg) {
+                        widths.push(seg.offsetWidth + 12); // Add separator width
+                    });
+                    return widths;
+                })()
+            ");
+
+            var rootWidth = await JS.InvokeAsync<double>("eval", @"
+                (function() {
+                    var container = document.querySelector('.breadcrumb-measure');
+                    if (!container) return 0;
+                    var root = container.querySelector('[data-measure-root]');
+                    return root ? root.offsetWidth + 8 : 0; // Add gap after root
+                })()
+            ");
+
+            if (segmentWidths == null || segmentWidths.Length == 0)
+            {
+                // Fallback: show all segments
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
+                return;
+            }
+
+            // Calculate available width for path segments
+            var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
+
+            // Calculate total width if showing all segments
+            var totalWidth = segmentWidths.Sum();
+
+            if (totalWidth <= availableWidth)
+            {
+                // All segments fit
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
+            }
+            else
+            {
+                // Need to truncate - reserve space for ellipsis and last segment
+                var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
+                var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 20; // Extra margin
+
+                // Calculate how many leading segments fit
+                var fittingCount = 0;
+                var accumulatedWidth = 0.0;
+
+                for (int i = 0; i < segmentWidths.Length - 1; i++)
+                {
+                    if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
+                    {
+                        accumulatedWidth += segmentWidths[i];
+                        fittingCount++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                // Always try to show at least the first segment
+                if (fittingCount == 0 && pathSegments.Count > 1)
+                {
+                    fittingCount = 1;
+                }
+
+                showEllipsis = true;
+                visibleLeadingSegments = pathSegments.Take(fittingCount).ToList();
+            }
+
+            StateHasChanged();
+        }
+        catch
+        {
+            // Fallback on error: show first segment + ellipsis + last if more than 3 segments
+            if (pathSegments.Count > 3)
             {
                 showEllipsis = true;
                 visibleLeadingSegments = pathSegments.Take(1).ToList();
-                StateHasChanged();
+            }
+            else
+            {
+                showEllipsis = false;
+                visibleLeadingSegments = pathSegments.ToList();
             }
         }
-        await Task.CompletedTask;
     }
 
     private async Task LoadRoots()
@@ -346,7 +461,6 @@
             var response = await Http.GetFromJsonAsync<List<RootInfo>>("/api/filesystem/roots");
             roots = response ?? new();
             
-            // Filter Network option for non-Windows
             if (!isWindows)
             {
                 roots = roots.Where(r => r.Type != "Network").ToList();
@@ -365,7 +479,6 @@
 
     private async Task SelectRoot(string path)
     {
-        // Special handling for Network root
         if (path == "")
         {
             try
@@ -562,7 +675,7 @@
         
         try
         {
-            await JS.InvokeVoidAsync("eval", "setTimeout(function() { var input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
+            await JS.InvokeAsync<object>("eval", "setTimeout(function() { var input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
         }
         catch { }
     }
@@ -848,6 +961,12 @@
         overflow: hidden;
         gap: 0.25rem;
         min-height: 32px;
+    }
+
+    .breadcrumb-measure {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
     }
 
     .breadcrumb-back {
