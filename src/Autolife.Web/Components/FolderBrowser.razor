@@ -691,7 +691,7 @@
     }
 
     .btn-close::before {
-        content: "×";
+        content: "\00d7";
     }
 
     .browser-body {
@@ -920,7 +920,7 @@
         animation: slideDown 0.2s ease;
     }
 
-    @keyframes slideDown {
+    @@keyframes slideDown {
         from {
             opacity: 0;
             transform: translateY(-5px);
@@ -989,7 +989,7 @@
         max-height: 600px;
     }
 
-    @keyframes popupAppear {
+    @@keyframes popupAppear {
         from {
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.9);
@@ -1213,7 +1213,7 @@
         animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
+    @@keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
