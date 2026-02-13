@@ -22,8 +22,8 @@
                         <i class="bi bi-chevron-left"></i>
                     </button>
 
-                    <!-- Primary breadcrumb container -->
-                    <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "" : "hidden")" @ref="breadcrumbNavRef">
+                    <!-- Primary breadcrumb container (always visible) -->
+                    <div class="breadcrumb-nav" @ref="breadcrumbNavRef">
                         <div class="breadcrumb-content">
                             @if (!string.IsNullOrEmpty(rootPrefix))
                             {
@@ -83,8 +83,8 @@
                         </div>
                     </div>
 
-                    <!-- Hidden breadcrumb container (for pre-calculation) -->
-                    <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "hidden" : "")" @ref="breadcrumbNavSecondaryRef">
+                    <!-- Hidden breadcrumb container (for measuring only, always hidden) -->
+                    <div class="breadcrumb-nav hidden" @ref="breadcrumbNavSecondaryRef">
                         <div class="breadcrumb-content" @ref="breadcrumbContentSecondaryRef">
                             @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                             {
