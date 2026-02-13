@@ -29,6 +29,33 @@
     --accent-hover: #8a9ef5;
 }
 
+/* ===== BLAZOR ERROR UI ===== */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    background: lightyellow;
+    border-top: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#blazor-error-ui .reload,
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    margin-left: 1rem;
+    color: #0366d6;
+    text-decoration: underline;
+}
+
+#blazor-error-ui .dismiss {
+    text-decoration: none;
+}
+
 /* ===== GLOBAL FOCUS OUTLINE REMOVAL ===== */
 /* Remove ALL focus outlines globally - no white lines! */
 *:focus,
