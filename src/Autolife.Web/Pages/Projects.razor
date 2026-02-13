@@ -7,7 +7,7 @@
 
 <div class="projects-container">
     <div class="page-header">
-        <h1>🚀 Projects</h1>
+        <h1><i class="bi bi-kanban"></i> Projects</h1>
         <button class="btn btn-primary" @onclick="() => showCreateDialog = true">
             <i class="bi bi-plus-lg"></i> New Project
         </button>
@@ -52,7 +52,10 @@
     else
     {
         <div class="empty-state">
-            <i class="bi bi-kanban"></i>
+            <div class="empty-icon">
+                <i class="bi bi-kanban"></i>
+                <div class="slash"></div>
+            </div>
             <h3>No projects yet</h3>
             <p>Start tracking your work by creating your first project.</p>
             <button class="btn btn-primary" @onclick="() => showCreateDialog = true">Create First Project</button>
@@ -153,6 +156,17 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0;
+    }
+
+    .page-header h1 i {
+        color: #667eea;
     }
 
     .projects-grid {
@@ -267,10 +281,26 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
-    .empty-state i {
-        font-size: 4rem;
-        color: #667eea;
+    .empty-icon {
+        position: relative;
+        display: inline-block;
         margin-bottom: 1rem;
+    }
+
+    .empty-icon i {
+        font-size: 4rem;
+        color: #cbd5e0;
+    }
+
+    .empty-icon .slash {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 120%;
+        height: 3px;
+        background: #e53e3e;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        border-radius: 2px;
     }
 
     .empty-state h3 {

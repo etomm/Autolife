@@ -4,7 +4,7 @@
 
 <div class="documents-container">
     <div class="page-header">
-        <h1>📄 Document Management</h1>
+        <h1><i class="bi bi-file-earmark-text"></i> Document Management</h1>
         <button class="btn btn-primary" @onclick="UploadDocument">
             <i class="bi bi-upload"></i> Upload Document
         </button>
@@ -45,7 +45,10 @@
     else
     {
         <div class="empty-state">
-            <i class="bi bi-file-earmark-text"></i>
+            <div class="empty-icon">
+                <i class="bi bi-file-earmark-text"></i>
+                <div class="slash"></div>
+            </div>
             <h3>No documents uploaded yet</h3>
             <p>Start organizing your documents by uploading your first file.</p>
             <button class="btn btn-primary" @onclick="UploadDocument">Upload First Document</button>
@@ -88,6 +91,17 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0;
+    }
+
+    .page-header h1 i {
+        color: #667eea;
     }
 
     .toolbar {
@@ -172,10 +186,26 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
-    .empty-state i {
-        font-size: 4rem;
-        color: #667eea;
+    .empty-icon {
+        position: relative;
+        display: inline-block;
         margin-bottom: 1rem;
+    }
+
+    .empty-icon i {
+        font-size: 4rem;
+        color: #cbd5e0;
+    }
+
+    .empty-icon .slash {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 120%;
+        height: 3px;
+        background: #e53e3e;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        border-radius: 2px;
     }
 
     .empty-state h3 {
