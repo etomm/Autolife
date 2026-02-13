@@ -5,7 +5,7 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")" data-theme="@currentTheme">
+<div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")">
     <div class="sidebar">
         <div class="sidebar-header">
             <button class="hamburger-btn" @onclick="ToggleSidebar">
@@ -83,7 +83,23 @@
         if (firstRender)
         {
             await LoadSidebarState();
-            await LoadThemeFromLocalStorage();
+            // Theme already loaded by preload script, just sync the state
+            await SyncThemeState();
+        }
+    }
+
+    private async Task SyncThemeState()
+    {
+        try
+        {
+            // Read the theme that was already applied by the preload script
+            var appliedTheme = await JS.InvokeAsync<string>("eval", "document.documentElement.getAttribute('data-theme') || 'light'");
+            currentTheme = appliedTheme;
+            StateHasChanged();
+        }
+        catch
+        {
+            currentTheme = "light";
         }
     }
 
@@ -117,29 +133,43 @@
     {
         theme = theme.ToLower();
         
+        string resolvedTheme;
+        
         switch (theme)
         {
             case "dark":
-                currentTheme = "dark";
+                resolvedTheme = "dark";
                 break;
             case "light":
-                currentTheme = "light";
+                resolvedTheme = "light";
                 break;
             case "auto":
                 try
                 {
                     // Detect system preference using JavaScript
                     var prefersDark = await JS.InvokeAsync<bool>("eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
-                    currentTheme = prefersDark ? "dark" : "light";
+                    resolvedTheme = prefersDark ? "dark" : "light";
                 }
                 catch
                 {
-                    currentTheme = "light";
+                    resolvedTheme = "light";
                 }
                 break;
             default:
-                currentTheme = "light";
+                resolvedTheme = "light";
                 break;
+        }
+        
+        currentTheme = resolvedTheme;
+        
+        // Apply to document root (same as preload script)
+        try
+        {
+            await JS.InvokeVoidAsync("eval", $"document.documentElement.setAttribute('data-theme', '{resolvedTheme}');");
+        }
+        catch
+        {
+            // Silent fail
         }
         
         StateHasChanged();
