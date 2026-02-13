@@ -87,7 +87,7 @@ public class GitStorageService
         Commands.Stage(repo, filePath);
         
         var signature = new Signature("Autolife", "autolife@local", DateTimeOffset.Now);
-        repo.Commit($"Update project: {project.Title}", signature, signature);
+        repo.Commit($"Update project: {project.Name}", signature, signature);
     }
 
     public async Task<Project?> LoadProjectAsync(Guid id)
