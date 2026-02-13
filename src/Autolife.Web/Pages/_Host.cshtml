@@ -12,6 +12,34 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
     <link href="css/site.css" rel="stylesheet" />
+    
+    <!-- Theme Preload Script - Runs BEFORE Blazor to prevent flash -->
+    <script>
+        (function() {
+            try {
+                // Get stored theme preference
+                var storedTheme = localStorage.getItem('theme') || 'light';
+                var actualTheme = storedTheme;
+                
+                // Resolve 'auto' to actual theme based on system preference
+                if (storedTheme === 'auto') {
+                    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    actualTheme = prefersDark ? 'dark' : 'light';
+                }
+                
+                // Apply theme immediately to body
+                document.documentElement.setAttribute('data-theme', actualTheme);
+                
+                // Also add a class for immediate CSS styling
+                document.documentElement.classList.add('theme-' + actualTheme);
+            } catch (e) {
+                // Fallback to light theme if localStorage unavailable
+                document.documentElement.setAttribute('data-theme', 'light');
+                document.documentElement.classList.add('theme-light');
+            }
+        })();
+    </script>
+    
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
     <title>Autolife - AI-Enabled Life & Knowledge Management</title>
 </head>
