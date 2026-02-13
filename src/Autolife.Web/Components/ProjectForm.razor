@@ -1,0 +1,125 @@
+@using Autolife.Core.Models
+@inject Autolife.Web.Services.ProjectService ProjectService
+
+<div class="modal @(IsVisible ? "show d-block" : "d-none")" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(IsEditMode ? "Edit" : "Create") Project</h5>
+                <button type="button" class="btn-close" @onclick="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Project Name</label>
+                    <input type="text" class="form-control" @bind="project.Name" placeholder="Enter project name" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="3" @bind="project.Description" placeholder="Describe your project..."></textarea>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" @bind="project.Status">
+                            <option value="@ProjectStatus.Planning">Planning</option>
+                            <option value="@ProjectStatus.Active">Active</option>
+                            <option value="@ProjectStatus.OnHold">On Hold</option>
+                            <option value="@ProjectStatus.Completed">Completed</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" class="form-control" @bind="dueDateInput" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Goals (one per line)</label>
+                    <textarea class="form-control" rows="4" @bind="goalsInput" placeholder="Enter project goals..."></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Tags (comma-separated)</label>
+                    <input type="text" class="form-control" @bind="tagsInput" placeholder="e.g., home, renovation, urgent" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="Close">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="HandleSave" disabled="@string.IsNullOrEmpty(project.Name)">@(IsEditMode ? "Update" : "Create")</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (IsVisible)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public Project? ExistingProject { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private Project project = new();
+    private string goalsInput = "";
+    private string tagsInput = "";
+    private string dueDateInput = DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd");
+    private bool IsEditMode => ExistingProject != null;
+
+    protected override void OnParametersSet()
+    {
+        if (ExistingProject != null)
+        {
+            project = new Project
+            {
+                Id = ExistingProject.Id,
+                Name = ExistingProject.Name,
+                Description = ExistingProject.Description,
+                Status = ExistingProject.Status,
+                StartDate = ExistingProject.StartDate,
+                DueDate = ExistingProject.DueDate,
+                Goals = new List<string>(ExistingProject.Goals),
+                Tags = new List<string>(ExistingProject.Tags)
+            };
+            goalsInput = string.Join("\n", project.Goals);
+            tagsInput = string.Join(", ", project.Tags);
+            dueDateInput = project.DueDate?.ToString("yyyy-MM-dd") ?? DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd");
+        }
+        else
+        {
+            project = new Project { StartDate = DateTime.UtcNow };
+            goalsInput = "";
+            tagsInput = "";
+            dueDateInput = DateTime.Now.AddMonths(1).ToString("yyyy-MM-dd");
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        project.Goals = goalsInput.Split('\n').Select(g => g.Trim()).Where(g => !string.IsNullOrEmpty(g)).ToList();
+        project.Tags = tagsInput.Split(',').Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+        project.DueDate = DateTime.Parse(dueDateInput);
+
+        if (IsEditMode)
+        {
+            await ProjectService.UpdateAsync(project);
+        }
+        else
+        {
+            await ProjectService.CreateAsync(project);
+        }
+
+        await OnSaved.InvokeAsync();
+        Close();
+    }
+
+    private void Close()
+    {
+        OnClosed.InvokeAsync();
+    }
+}

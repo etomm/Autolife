@@ -1,0 +1,282 @@
+@inject IJSRuntime JS
+
+<div class="ai-chat-fab" @onclick="ToggleChat">
+    <i class="bi @(isOpen ? "bi-x-lg" : "bi-robot")"></i>
+</div>
+
+@if (isOpen)
+{
+    <div class="ai-chat-window">
+        <div class="chat-header">
+            <h6><i class="bi bi-robot"></i> AI Assistant</h6>
+            <button class="btn-close btn-close-white" @onclick="ToggleChat"></button>
+        </div>
+        <div class="chat-messages" @ref="chatContainer">
+            @foreach (var msg in messages)
+            {
+                <div class="chat-bubble @(msg.IsUser ? "user" : "assistant")">
+                    <div class="bubble-content">@msg.Text</div>
+                    <div class="bubble-time">@msg.Timestamp.ToString("HH:mm")</div>
+                </div>
+            }
+            @if (isTyping)
+            {
+                <div class="chat-bubble assistant typing">
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="chat-input">
+            <input type="text" 
+                   class="form-control" 
+                   placeholder="Ask me anything..." 
+                   @bind="currentMessage" 
+                   @onkeydown="HandleKeyDown" />
+            <button class="btn btn-primary" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(currentMessage) || isTyping)">
+                <i class="bi bi-send"></i>
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isOpen = false;
+    private bool isTyping = false;
+    private string currentMessage = "";
+    private ElementReference chatContainer;
+    private List<ChatMessage> messages = new();
+
+    private class ChatMessage
+    {
+        public string Text { get; set; } = "";
+        public bool IsUser { get; set; }
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    protected override void OnInitialized()
+    {
+        messages.Add(new ChatMessage
+        {
+            Text = "Hi! I'm your AI assistant. I can help you manage your knowledge, documents, and projects. What would you like to do?",
+            IsUser = false
+        });
+    }
+
+    private void ToggleChat()
+    {
+        isOpen = !isOpen;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(currentMessage))
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(currentMessage)) return;
+
+        messages.Add(new ChatMessage
+        {
+            Text = currentMessage,
+            IsUser = true
+        });
+
+        var userQuestion = currentMessage;
+        currentMessage = "";
+        isTyping = true;
+        StateHasChanged();
+
+        await Task.Delay(1000); // Simulate AI processing
+
+        var response = GenerateResponse(userQuestion);
+        messages.Add(new ChatMessage
+        {
+            Text = response,
+            IsUser = false
+        });
+
+        isTyping = false;
+        StateHasChanged();
+    }
+
+    private string GenerateResponse(string question)
+    {
+        var lowerQuestion = question.ToLower();
+
+        if (lowerQuestion.Contains("knowledge") || lowerQuestion.Contains("learn"))
+            return "You can create knowledge entries to store guides, tutorials, and personal insights. Go to the Knowledge section to get started!";
+        
+        if (lowerQuestion.Contains("document") || lowerQuestion.Contains("file"))
+            return "I can help you organize your documents! Visit the Documents section to upload and categorize your files by type (Personal, Work, Financial, etc.).";
+        
+        if (lowerQuestion.Contains("project") || lowerQuestion.Contains("task"))
+            return "Let's manage your projects! You can create projects with goals, track progress, and set deadlines in the Projects section.";
+        
+        if (lowerQuestion.Contains("settings") || lowerQuestion.Contains("config"))
+            return "You can configure AI models, storage settings, and appearance preferences in the Settings page.";
+        
+        if (lowerQuestion.Contains("help") || lowerQuestion.Contains("how"))
+            return "Autolife helps you manage three main areas:\n1. Knowledge - Your personal wiki\n2. Documents - Organized file storage\n3. Projects - Track your work\n\nWhat would you like to explore first?";
+
+        return "I'm here to help you with knowledge management, document organization, and project tracking. Could you be more specific about what you'd like to do?";
+    }
+}
+
+<style>
+    .ai-chat-fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        transition: transform 0.2s, box-shadow 0.2s;
+        z-index: 1000;
+    }
+
+    .ai-chat-fab:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .ai-chat-window {
+        position: fixed;
+        bottom: 5rem;
+        right: 2rem;
+        width: 380px;
+        height: 500px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        z-index: 999;
+        overflow: hidden;
+    }
+
+    .chat-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chat-header h6 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background: #f8f9fa;
+    }
+
+    .chat-bubble {
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-bubble.user {
+        align-items: flex-end;
+    }
+
+    .chat-bubble.assistant {
+        align-items: flex-start;
+    }
+
+    .bubble-content {
+        max-width: 80%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        white-space: pre-wrap;
+    }
+
+    .chat-bubble.user .bubble-content {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .chat-bubble.assistant .bubble-content {
+        background: white;
+        color: #2c3e50;
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .bubble-time {
+        font-size: 0.7rem;
+        color: #7f8c8d;
+        margin-top: 0.25rem;
+    }
+
+    .typing-indicator {
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.75rem 1rem;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        background: #667eea;
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-indicator span:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .typing-indicator span:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @@keyframes typing {
+        0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.7;
+        }
+        30% {
+            transform: translateY(-10px);
+            opacity: 1;
+        }
+    }
+
+    .chat-input {
+        padding: 1rem;
+        background: white;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .chat-input input {
+        flex: 1;
+    }
+
+    .chat-input button {
+        padding: 0.5rem 1rem;
+    }
+</style>
