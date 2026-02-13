@@ -14,8 +14,9 @@ builder.Services.AddSingleton<IKnowledgeRepository, InMemoryKnowledgeRepository>
 builder.Services.AddSingleton<IDocumentRepository, InMemoryDocumentRepository>();
 builder.Services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
 
-// Register AI service
-builder.Services.AddSingleton<IAiService, MockAiService>();
+// Register AI Provider Manager and Fallback AI Service
+builder.Services.AddSingleton<IAIProviderManager, InMemoryAIProviderRepository>();
+builder.Services.AddSingleton<IAiService, FallbackAiService>();
 
 // Register business services
 builder.Services.AddScoped<IKnowledgeService, KnowledgeService>();

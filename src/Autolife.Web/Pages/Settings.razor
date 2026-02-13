@@ -1,138 +1,254 @@
 @page "/settings"
-@using Microsoft.Extensions.Configuration
-@inject IConfiguration Configuration
+@using Autolife.Core.Interfaces
+@using Autolife.Core.Models
+@inject IAIProviderManager ProviderManager
 
 <PageTitle>Settings - Autolife</PageTitle>
 
 <div class="settings-container">
     <h1>⚙️ Settings</h1>
-    
-    <div class="settings-section">
-        <h2>AI Configuration</h2>
-        <div class="form-group">
-            <label for="aiProvider">AI Provider</label>
-            <select id="aiProvider" class="form-control" @bind="selectedProvider">
-                <option value="openai">OpenAI</option>
-                <option value="azure">Azure OpenAI</option>
-                <option value="local">Local Model</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="apiKey">API Key</label>
-            <input type="password" id="apiKey" class="form-control" @bind="apiKey" placeholder="Enter your API key" />
-        </div>
-
-        <div class="form-group">
-            <label for="model">Model</label>
-            <input type="text" id="model" class="form-control" @bind="modelName" placeholder="gpt-4" />
-        </div>
-    </div>
 
     <div class="settings-section">
-        <h2>Storage Configuration</h2>
-        <div class="form-group">
-            <label for="repoPath">Git Repository Path</label>
-            <input type="text" id="repoPath" class="form-control" @bind="repositoryPath" placeholder="/path/to/repo" />
+        <div class="section-header">
+            <h2>🤖 AI Providers</h2>
+            <button class="btn btn-primary" @onclick="() => showAddDialog = true">
+                <i class="bi bi-plus-lg"></i> Add Provider
+            </button>
         </div>
 
-        <div class="form-check">
-            <input type="checkbox" class="form-check-input" id="autoCommit" @bind="autoCommit" />
-            <label class="form-check-label" for="autoCommit">
-                Automatically commit changes
-            </label>
-        </div>
+        @if (isLoading)
+        {
+            <div class="text-center p-4">
+                <div class="spinner-border" role="status"></div>
+            </div>
+        }
+        else if (providers.Any())
+        {
+            <div class="fallback-chain">
+                <h3>Fallback Chain (Priority Order)</h3>
+                <div class="chain-items">
+                    @foreach (var provider in providers.OrderBy(p => p.Priority))
+                    {
+                        <div class="chain-item">
+                            <div class="chain-arrow">@(provider.Priority == providers.Min(p => p.Priority) ? "➤" : "↓")</div>
+                            <div class="provider-card @(provider.IsEnabled ? "" : "disabled")">
+                                <div class="provider-header">
+                                    <div class="provider-info">
+                                        <h4>@provider.Name</h4>
+                                        <span class="provider-type">@provider.Type</span>
+                                        <span class="status-badge status-@provider.Status.ToString().ToLower()">@provider.Status</span>
+                                    </div>
+                                    <div class="provider-actions">
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditProvider(provider)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteProvider(provider.Id)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="provider-details">
+                                    <div class="detail-row">
+                                        <span class="label">Priority:</span>
+                                        <span class="value">@provider.Priority</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Model:</span>
+                                        <span class="value">@provider.Model</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="label">Enabled:</span>
+                                        <span class="value">@(provider.IsEnabled ? "Yes" : "No")</span>
+                                    </div>
+                                    @if (provider.LastSuccessfulCall.HasValue)
+                                    {
+                                        <div class="detail-row">
+                                            <span class="label">Last Success:</span>
+                                            <span class="value">@provider.LastSuccessfulCall.Value.ToLocalTime().ToString("g")</span>
+                                        </div>
+                                    }
+                                    @if (provider.ConsecutiveFailures > 0)
+                                    {
+                                        <div class="detail-row warning">
+                                            <span class="label">Consecutive Failures:</span>
+                                            <span class="value">@provider.ConsecutiveFailures</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <p>No AI providers configured. Add your first provider to get started.</p>
+            </div>
+        }
     </div>
-
-    <div class="settings-section">
-        <h2>Appearance</h2>
-        <div class="form-group">
-            <label for="theme">Theme</label>
-            <select id="theme" class="form-control" @bind="selectedTheme">
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto</option>
-            </select>
-        </div>
-    </div>
-
-    <div class="settings-actions">
-        <button class="btn btn-primary" @onclick="SaveSettings">Save Settings</button>
-        <button class="btn btn-secondary" @onclick="ResetSettings">Reset to Defaults</button>
-    </div>
-
-    @if (!string.IsNullOrEmpty(message))
-    {
-        <div class="alert alert-@messageType mt-3">
-            @message
-        </div>
-    }
 </div>
 
-@code {
-    private string selectedProvider = "openai";
-    private string apiKey = "";
-    private string modelName = "gpt-4";
-    private string repositoryPath = "";
-    private bool autoCommit = true;
-    private string selectedTheme = "light";
-    private string message = "";
-    private string messageType = "success";
+@if (showAddDialog || showEditDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseDialog"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5>@(showEditDialog ? "Edit" : "Add") AI Provider</h5>
+                <button class="btn-close" @onclick="CloseDialog"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Provider Name *</label>
+                    <input type="text" class="form-control" @bind="editingProvider.Name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Provider Type *</label>
+                    <select class="form-control" @bind="editingProvider.Type">
+                        <option value="@AIProviderType.OpenAI">OpenAI</option>
+                        <option value="@AIProviderType.AzureOpenAI">Azure OpenAI</option>
+                        <option value="@AIProviderType.Anthropic">Anthropic (Claude)</option>
+                        <option value="@AIProviderType.GoogleGemini">Google Gemini</option>
+                        <option value="@AIProviderType.LocalLlama">Local Llama</option>
+                        <option value="@AIProviderType.Mock">Mock (Testing)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">API Key *</label>
+                    <input type="password" class="form-control" @bind="editingProvider.ApiKey" placeholder="sk-..." />
+                </div>
+                @if (editingProvider.Type == AIProviderType.AzureOpenAI)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Endpoint URL *</label>
+                        <input type="text" class="form-control" @bind="editingProvider.Endpoint" placeholder="https://your-resource.openai.azure.com" />
+                    </div>
+                }
+                <div class="mb-3">
+                    <label class="form-label">Model *</label>
+                    <input type="text" class="form-control" @bind="editingProvider.Model" placeholder="gpt-4, claude-3, etc." />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Priority (lower = higher priority) *</label>
+                    <input type="number" class="form-control" @bind="editingProvider.Priority" min="0" max="100" />
+                    <small class="form-text text-muted">0 = highest priority, 100 = lowest priority</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Timeout (seconds)</label>
+                    <input type="number" class="form-control" @bind="editingProvider.TimeoutSeconds" min="5" max="120" />
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="enabledCheck" @bind="editingProvider.IsEnabled" />
+                    <label class="form-check-label" for="enabledCheck">Enabled</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDialog">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveProvider" 
+                        disabled="@(string.IsNullOrWhiteSpace(editingProvider.Name) || string.IsNullOrWhiteSpace(editingProvider.ApiKey) || string.IsNullOrWhiteSpace(editingProvider.Model))">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
-    protected override void OnInitialized()
+@code {
+    private List<AIProviderConfig> providers = new();
+    private bool isLoading = true;
+    private bool showAddDialog = false;
+    private bool showEditDialog = false;
+    private AIProviderConfig editingProvider = new();
+
+    protected override async Task OnInitializedAsync()
     {
+        await LoadProviders();
+    }
+
+    private async Task LoadProviders()
+    {
+        isLoading = true;
         try
         {
-            // Load settings from configuration
-            var aiConfig = Configuration.GetSection("AI");
-            selectedProvider = aiConfig["Provider"] ?? "openai";
-            modelName = aiConfig["Model"] ?? "gpt-4";
-            
-            var storageConfig = Configuration.GetSection("Storage");
-            repositoryPath = storageConfig["RepositoryPath"] ?? "";
-            autoCommit = bool.Parse(storageConfig["AutoCommit"] ?? "true");
+            providers = await ProviderManager.GetAllProvidersAsync();
         }
-        catch (Exception)
+        finally
         {
-            // Use default values if configuration fails
+            isLoading = false;
         }
     }
 
-    private void SaveSettings()
+    private void EditProvider(AIProviderConfig provider)
+    {
+        editingProvider = new AIProviderConfig
+        {
+            Id = provider.Id,
+            Name = provider.Name,
+            Type = provider.Type,
+            ApiKey = provider.ApiKey,
+            Endpoint = provider.Endpoint,
+            Model = provider.Model,
+            Priority = provider.Priority,
+            TimeoutSeconds = provider.TimeoutSeconds,
+            IsEnabled = provider.IsEnabled
+        };
+        showEditDialog = true;
+    }
+
+    private async Task SaveProvider()
     {
         try
         {
-            // TODO: Implement actual settings persistence
-            // For now, just show success message
-            message = "Settings saved successfully!";
-            messageType = "success";
-            StateHasChanged();
+            if (showEditDialog)
+            {
+                await ProviderManager.UpdateProviderAsync(editingProvider);
+            }
+            else
+            {
+                await ProviderManager.AddProviderAsync(editingProvider);
+            }
+            
+            CloseDialog();
+            await LoadProviders();
         }
         catch (Exception ex)
         {
-            message = $"Error saving settings: {ex.Message}";
-            messageType = "danger";
-            StateHasChanged();
+            Console.WriteLine($"Error saving provider: {ex.Message}");
         }
     }
 
-    private void ResetSettings()
+    private async Task DeleteProvider(Guid id)
     {
-        selectedProvider = "openai";
-        apiKey = "";
-        modelName = "gpt-4";
-        repositoryPath = "";
-        autoCommit = true;
-        selectedTheme = "light";
-        message = "Settings reset to defaults";
-        messageType = "info";
-        StateHasChanged();
+        if (providers.Count == 1)
+        {
+            // Don't allow deleting the last provider
+            return;
+        }
+
+        try
+        {
+            await ProviderManager.DeleteProviderAsync(id);
+            await LoadProviders();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting provider: {ex.Message}");
+        }
+    }
+
+    private void CloseDialog()
+    {
+        showAddDialog = false;
+        showEditDialog = false;
+        editingProvider = new AIProviderConfig { Priority = 10, TimeoutSeconds = 30, IsEnabled = true };
     }
 }
 
 <style>
     .settings-container {
-        max-width: 800px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 2rem;
     }
@@ -145,30 +261,199 @@
         margin-bottom: 2rem;
     }
 
-    .settings-section h2 {
-        margin-top: 0;
-        color: #2c3e50;
-        font-size: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-        color: #555;
-    }
-
-    .settings-actions {
+    .section-header {
         display: flex;
-        gap: 1rem;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
     }
 
-    .settings-actions button {
-        padding: 0.75rem 2rem;
+    .section-header h2 {
+        margin: 0;
+    }
+
+    .fallback-chain h3 {
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+        font-size: 1.1rem;
+    }
+
+    .chain-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .chain-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .chain-arrow {
+        font-size: 2rem;
+        color: #667eea;
+        margin: 0.5rem 0;
+    }
+
+    .provider-card {
+        width: 100%;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .provider-card.disabled {
+        opacity: 0.6;
+        background: #f5f5f5;
+    }
+
+    .provider-card:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    }
+
+    .provider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .provider-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .provider-info h4 {
+        margin: 0;
+        color: #2c3e50;
+    }
+
+    .provider-type {
+        padding: 0.25rem 0.75rem;
+        background: #e9ecef;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .status-healthy {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-degraded {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-unavailable {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-unknown {
+        background: #e9ecef;
+        color: #6c757d;
+    }
+
+    .provider-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .provider-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .detail-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .detail-row.warning {
+        color: #dc3545;
+    }
+
+    .detail-row .label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    .detail-row .value {
+        font-size: 0.95rem;
+        color: #2c3e50;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1040;
+    }
+
+    .modal-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1050;
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
     }
 </style>
