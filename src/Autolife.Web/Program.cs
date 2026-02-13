@@ -3,12 +3,21 @@ using Autolife.Core.Interfaces;
 using Autolife.Core.Services;
 using Autolife.Storage.Repositories;
 using Autolife.Storage.Services;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
+builder.Services.AddServerSideBlazor(options =>
+{
+    // Enable detailed errors for debugging
+    options.DetailedErrors = true;
+    
+    // Increase timeout for long-running operations
+    options.DisconnectedCircuitMaxRetained = 100;
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+});
 
 // Add Controllers for API endpoints
 builder.Services.AddControllers();
@@ -39,6 +48,11 @@ builder.Services.AddSingleton<ISettingsManager, InMemorySettingsManager>();
 builder.Services.AddScoped<IKnowledgeService, KnowledgeService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
+
+// Add logging
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 var app = builder.Build();
 
