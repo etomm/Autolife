@@ -19,15 +19,14 @@
             }
             else
             {
-                <div class="current-path">
+                <div class="current-path @(isCalculating ? "calculating" : "")">
                     <!-- Back button - OUTSIDE breadcrumb -->
                     <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
                         <i class="bi bi-chevron-left"></i>
                     </button>
 
-                    <!-- Active breadcrumb container -->
+                    <!-- Primary breadcrumb container -->
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "" : "hidden")" @ref="breadcrumbNavRef">
-                        <!-- Root button (Drive or Network) -->
                         @if (!string.IsNullOrEmpty(rootPrefix))
                         {
                             <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
@@ -35,7 +34,6 @@
                             </button>
                         }
                         
-                        <!-- Path segments with dynamic ellipsis -->
                         @if (pathSegments.Count > 0)
                         {
                             @if (showEllipsis)
@@ -56,26 +54,37 @@
                                 {
                                     var capturedPath = lastSegment.path;
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                    <button type="button" class="breadcrumb-item breadcrumb-current">
                                         @lastSegment.segment
                                     </button>
                                 }
                             }
                             else
                             {
-                                @foreach (var (segment, path) in pathSegments)
+                                @for (int i = 0; i < pathSegments.Count; i++)
                                 {
-                                    var capturedPath = path;
+                                    var segment = pathSegments[i];
+                                    var capturedPath = segment.path;
+                                    var isLast = (i == pathSegments.Count - 1);
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                        @segment
-                                    </button>
+                                    @if (isLast)
+                                    {
+                                        <button type="button" class="breadcrumb-item breadcrumb-current">
+                                            @segment.segment
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                            @segment.segment
+                                        </button>
+                                    }
                                 }
                             }
                         }
                     </div>
 
-                    <!-- Secondary breadcrumb container (for pre-calculation) -->
+                    <!-- Hidden breadcrumb container (for pre-calculation) -->
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "hidden" : "")" @ref="breadcrumbNavSecondaryRef">
                         @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                         {
@@ -102,37 +111,34 @@
                                 </button>
                                 @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
                                 {
-                                    var capturedPath = secondaryLastSegment.path;
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                    <button type="button" class="breadcrumb-item breadcrumb-current">
                                         @secondaryLastSegment.segment
                                     </button>
                                 }
                             }
                             else
                             {
-                                @foreach (var (segment, path) in secondaryPathSegments)
+                                @for (int i = 0; i < secondaryPathSegments.Count; i++)
                                 {
-                                    var capturedPath = path;
+                                    var segment = secondaryPathSegments[i];
+                                    var capturedPath = segment.path;
+                                    var isLast = (i == secondaryPathSegments.Count - 1);
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                        @segment
-                                    </button>
+                                    @if (isLast)
+                                    {
+                                        <button type="button" class="breadcrumb-item breadcrumb-current">
+                                            @segment.segment
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                            @segment.segment
+                                        </button>
+                                    }
                                 }
                             }
-                        }
-                    </div>
-
-                    <!-- Hidden measurement container -->
-                    <div class="breadcrumb-measure" @ref="measureContainerRef">
-                        @if (!string.IsNullOrEmpty(measureRootPrefix))
-                        {
-                            <button type="button" class="breadcrumb-item" data-measure-root>@measureRootPrefix</button>
-                        }
-                        @foreach (var (segment, path) in measurePathSegments)
-                        {
-                            <span class="breadcrumb-separator">/</span>
-                            <button type="button" class="breadcrumb-item" data-measure-segment>@segment</button>
                         }
                     </div>
 
@@ -359,12 +365,12 @@
     private ElementReference createInputRef;
     private ElementReference breadcrumbNavRef;
     private ElementReference breadcrumbNavSecondaryRef;
-    private ElementReference measureContainerRef;
     private System.Threading.Timer? hideErrorTimer;
 
     // Dual breadcrumb system
     private bool showPrimaryBreadcrumb = true;
     private bool needsCalculation = false;
+    private bool isCalculating = false;
 
     // Primary breadcrumb state
     private List<(string segment, string path)> pathSegments = new();
@@ -378,10 +384,6 @@
     private List<(string segment, string path)> secondaryVisibleLeadingSegments = new();
     private (string segment, string path) secondaryLastSegment = ("", "");
     private bool secondaryShowEllipsis = false;
-
-    // Measurement container state
-    private string measureRootPrefix = "";
-    private List<(string segment, string path)> measurePathSegments = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -400,6 +402,7 @@
         {
             await CalculateAndSwapBreadcrumb();
             needsCalculation = false;
+            isCalculating = false;
             StateHasChanged();
         }
     }
@@ -410,46 +413,25 @@
         {
             await Task.Delay(10);
 
-            var containerWidth = await JS.InvokeAsync<double>("eval", 
-                "(function() { var el = document.querySelector('.breadcrumb-nav'); return el ? el.offsetWidth : 0; })()");
+            // Get the hidden breadcrumb div reference
+            var hiddenRef = showPrimaryBreadcrumb ? breadcrumbNavSecondaryRef : breadcrumbNavRef;
             
-            if (containerWidth <= 0)
-            {
-                // Fallback - show everything without ellipsis
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                SwapBreadcrumbs();
-                return;
-            }
-
-            var backButtonWidth = 32.0;
-            var ellipsisButtonWidth = 40.0;  // Slightly larger to account for padding
-            var newFolderButtonWidth = canCreateFolder && !showCreateInline ? 60.0 : 0.0;
-            var margins = 60.0;  // Increased margins for safety
-
-            var segmentWidths = await JS.InvokeAsync<double[]>("eval", @"
-                (function() {
-                    var container = document.querySelector('.breadcrumb-measure');
-                    if (!container) return [];
-                    var segments = container.querySelectorAll('[data-measure-segment]');
-                    var widths = [];
-                    segments.forEach(function(seg) {
-                        widths.push(seg.offsetWidth + 12);
-                    });
-                    return widths;
-                })()
+            var hiddenWidth = await JS.InvokeAsync<double>("eval", $@"
+                (function() {{
+                    var containers = document.querySelectorAll('.breadcrumb-nav');
+                    for (var i = 0; i < containers.length; i++) {{
+                        if (containers[i].classList.contains('hidden')) {{
+                            return containers[i].scrollWidth;
+                        }}
+                    }}
+                    return 0;
+                }})()
             ");
 
-            var rootWidth = await JS.InvokeAsync<double>("eval", @"
-                (function() {
-                    var container = document.querySelector('.breadcrumb-measure');
-                    if (!container) return 0;
-                    var root = container.querySelector('[data-measure-root]');
-                    return root ? root.offsetWidth + 12 : 0;
-                })()
-            ");
-
-            if (segmentWidths == null || segmentWidths.Length == 0)
+            var containerWidth = await JS.InvokeAsync<double>("eval", 
+                "(function() { var el = document.querySelector('.breadcrumb-nav:not(.hidden)'); return el ? el.offsetWidth : 0; })()");
+            
+            if (containerWidth <= 0 || hiddenWidth <= 0)
             {
                 secondaryShowEllipsis = false;
                 secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
@@ -457,50 +439,62 @@
                 return;
             }
 
-            var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
-            var totalWidth = segmentWidths.Sum();
+            var availableWidth = containerWidth - 20; // Small margin
 
             // Check if all segments fit
-            if (totalWidth <= availableWidth)
+            if (hiddenWidth <= availableWidth)
             {
                 secondaryShowEllipsis = false;
                 secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
             }
             else
             {
-                // Calculate how many leading segments fit + ellipsis + last segment
-                var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
-                var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 24; // separator widths
+                // Need to shorten - calculate which segments to hide
+                // Strategy: Keep first segments + .. + last segment
+                // Remove segments from the end towards the beginning until it fits
+                
+                var ellipsisWidth = 50.0; // Approximate width of .. button
+                var targetWidth = availableWidth - ellipsisWidth;
 
-                var fittingCount = 0;
-                var accumulatedWidth = 0.0;
-
-                // Try to fit as many leading segments as possible
-                for (int i = 0; i < segmentWidths.Length - 1; i++)
+                // Always keep the last segment
+                if (secondaryPathSegments.Count > 1)
                 {
-                    if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
+                    var keepCount = 0;
+                    
+                    // Start with just root + last, then add segments from the beginning
+                    for (int i = 0; i < secondaryPathSegments.Count - 1; i++)
                     {
-                        accumulatedWidth += segmentWidths[i];
-                        fittingCount++;
+                        // Try adding this segment
+                        keepCount = i + 1;
+                        
+                        // Rebuild to measure (simplified approach)
+                        // For now, use a heuristic: each segment is ~80px average
+                        var estimatedWidth = (keepCount * 80) + ellipsisWidth + 80; // +80 for last segment
+                        
+                        if (estimatedWidth > targetWidth)
+                        {
+                            keepCount = Math.Max(0, keepCount - 1);
+                            break;
+                        }
                     }
-                    else
-                    {
-                        break;
-                    }
-                }
 
-                // Always show at least ellipsis + last if we have more than 1 segment
-                secondaryShowEllipsis = true;
-                secondaryVisibleLeadingSegments = fittingCount > 0 
-                    ? secondaryPathSegments.Take(fittingCount).ToList() 
-                    : new List<(string, string)>();
+                    secondaryShowEllipsis = true;
+                    secondaryVisibleLeadingSegments = keepCount > 0 
+                        ? secondaryPathSegments.Take(keepCount).ToList() 
+                        : new List<(string, string)>();
+                }
+                else
+                {
+                    // Only one segment, show it even if it overflows
+                    secondaryShowEllipsis = false;
+                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                }
             }
 
             SwapBreadcrumbs();
         }
         catch (Exception ex)
         {
-            // Fallback on error - show all segments
             Console.WriteLine($"Breadcrumb calculation error: {ex.Message}");
             secondaryShowEllipsis = false;
             secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
@@ -578,9 +572,9 @@
         lastSegment = ("", "");
         showEllipsis = false;
         secondaryPathSegments.Clear();
-        measurePathSegments.Clear();
         showCreateInline = false;
         needsCalculation = false;
+        isCalculating = false;
         ClearError();
         ClearCreateError();
         StateHasChanged();
@@ -596,7 +590,14 @@
 
     private async Task NavigateToPath(string path)
     {
+        // Don't navigate if we're already at this path
+        if (path == currentPath)
+        {
+            return;
+        }
+
         isLoading = true;
+        isCalculating = true;
         ClearError();
         ClearCreateError();
         showRootSelection = false;
@@ -616,10 +617,6 @@
                 // Prepare secondary breadcrumb data
                 UpdateRootInfo(currentPath, out secondaryRootPrefix);
                 BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
-                
-                // Prepare measurement data
-                measureRootPrefix = secondaryRootPrefix;
-                measurePathSegments = secondaryPathSegments.ToList();
 
                 // Trigger calculation on next render
                 needsCalculation = true;
@@ -629,6 +626,7 @@
         {
             SetError("Cannot access directory", ex.Message);
             needsCalculation = false;
+            isCalculating = false;
         }
         finally
         {
@@ -1039,6 +1037,11 @@
         min-height: 60px;
     }
 
+    .current-path.calculating {
+        pointer-events: none;
+        opacity: 0.7;
+    }
+
     .breadcrumb-nav {
         flex: 1;
         display: flex;
@@ -1051,17 +1054,6 @@
 
     .breadcrumb-nav.hidden {
         display: none;
-    }
-
-    .breadcrumb-measure {
-        visibility: hidden;
-        position: absolute;
-        top: -9999px;
-        left: -9999px;
-        white-space: nowrap;
-        display: flex;
-        align-items: center;
-        gap: 0.25rem;
     }
 
     .breadcrumb-back {
@@ -1128,6 +1120,16 @@
 
     .breadcrumb-item:hover {
         background: var(--bg-secondary);
+    }
+
+    .breadcrumb-item.breadcrumb-current {
+        cursor: default;
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .breadcrumb-item.breadcrumb-current:hover {
+        background: none;
     }
 
     .breadcrumb-separator {
