@@ -40,6 +40,28 @@
         })();
     </script>
     
+    <!-- Global Error Handler -->
+    <script>
+        window.addEventListener('error', function(event) {
+            console.error('🔴 GLOBAL ERROR:', event.error);
+            console.error('Message:', event.message);
+            console.error('Source:', event.filename + ':' + event.lineno + ':' + event.colno);
+            console.error('Stack:', event.error ? event.error.stack : 'No stack trace');
+        });
+        
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('🔴 UNHANDLED PROMISE REJECTION:', event.reason);
+            console.error('Promise:', event.promise);
+        });
+        
+        // Blazor error interception
+        Blazor = window.Blazor || {};
+        Blazor.defaultReconnectionHandler = {
+            onConnectionDown: () => console.warn('⚠️ Blazor connection lost'),
+            onConnectionUp: () => console.log('✅ Blazor connection restored')
+        };
+    </script>
+    
     <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
     <title>Autolife - AI-Enabled Life & Knowledge Management</title>
 </head>
@@ -58,5 +80,26 @@
     </div>
 
     <script src="_framework/blazor.server.js"></script>
+    
+    <!-- Error monitoring after Blazor loads -->
+    <script>
+        (function() {
+            // Monitor Blazor error UI visibility
+            const errorUI = document.getElementById('blazor-error-ui');
+            if (errorUI) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                            const isVisible = errorUI.style.display !== 'none' && errorUI.style.display !== '';
+                            if (isVisible) {
+                                console.error('🔴 BLAZOR ERROR UI SHOWN - Check logs above for exception details');
+                            }
+                        }
+                    });
+                });
+                observer.observe(errorUI, { attributes: true });
+            }
+        })();
+    </script>
 </body>
 </html>
