@@ -97,11 +97,12 @@
                             {
                                 @if (secondaryShowEllipsis)
                                 {
-                                    @foreach (var (segment, path) in secondaryVisibleLeadingSegments)
+                                    @for (int idx = 0; idx < secondaryVisibleLeadingSegments.Count; idx++)
                                     {
+                                        var (segment, path) = secondaryVisibleLeadingSegments[idx];
                                         var capturedPath = path;
                                         <span class="breadcrumb-separator" data-measure-sep>/</span>
-                                        <button type="button" class="breadcrumb-item" data-measure-segment="@secondaryVisibleLeadingSegments.IndexOf((segment, path))" @onclick="async () => await NavigateToPath(capturedPath)">
+                                        <button type="button" class="breadcrumb-item" data-measure-segment="@idx" @onclick="async () => await NavigateToPath(capturedPath)">
                                             @segment
                                         </button>
                                     }
