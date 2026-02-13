@@ -20,12 +20,13 @@
             else
             {
                 <div class="current-path">
-                    <div class="breadcrumb-nav @(isCalculatingBreadcrumb ? "calculating" : "")" @ref="breadcrumbNavRef">
-                        <!-- Left arrow to return to root selection -->
-                        <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
-                            <i class="bi bi-chevron-left"></i>
-                        </button>
-                        
+                    <!-- Back button - OUTSIDE breadcrumb -->
+                    <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+
+                    <!-- Active breadcrumb container -->
+                    <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "" : "hidden")" @ref="breadcrumbNavRef">
                         <!-- Root button (Drive or Network) - NO separator before it -->
                         @if (!string.IsNullOrEmpty(rootPrefix))
                         {
@@ -39,7 +40,6 @@
                         {
                             @if (showEllipsis)
                             {
-                                <!-- Show visible leading segments -->
                                 @foreach (var (segment, path) in visibleLeadingSegments)
                                 {
                                     var capturedPath = path;
@@ -48,12 +48,10 @@
                                         @segment
                                     </button>
                                 }
-                                <!-- Show .. to represent hidden segments -->
                                 <span class="breadcrumb-separator">/</span>
                                 <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
                                     <span>..</span>
                                 </button>
-                                <!-- Always show the last segment -->
                                 @if (!string.IsNullOrEmpty(lastSegment.segment))
                                 {
                                     var capturedPath = lastSegment.path;
@@ -65,7 +63,6 @@
                             }
                             else
                             {
-                                <!-- Show all segments when they fit -->
                                 @foreach (var (segment, path) in pathSegments)
                                 {
                                     var capturedPath = path;
@@ -78,24 +75,69 @@
                         }
                     </div>
 
-                    <!-- Hidden measurement container -->
-                    <div class="breadcrumb-measure" @ref="measureContainerRef" style="visibility: hidden; position: absolute; top: -9999px; left: -9999px; white-space: nowrap;">
-                        @if (!string.IsNullOrEmpty(rootPrefix))
+                    <!-- Secondary breadcrumb container (for pre-calculation) -->
+                    <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "hidden" : "")" @ref="breadcrumbNavSecondaryRef">
+                        @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                         {
-                            <button type="button" class="breadcrumb-item" data-measure-root>@rootPrefix</button>
+                            <button type="button" class="breadcrumb-item">
+                                @secondaryRootPrefix
+                            </button>
                         }
-                        @foreach (var (segment, path) in pathSegments)
+                        
+                        @if (secondaryPathSegments.Count > 0)
+                        {
+                            @if (secondaryShowEllipsis)
+                            {
+                                @foreach (var (segment, path) in secondaryVisibleLeadingSegments)
+                                {
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-item">
+                                        @segment
+                                    </button>
+                                }
+                                <span class="breadcrumb-separator">/</span>
+                                <button type="button" class="breadcrumb-ellipsis">
+                                    <span>..</span>
+                                </button>
+                                @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
+                                {
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-item">
+                                        @secondaryLastSegment.segment
+                                    </button>
+                                }
+                            }
+                            else
+                            {
+                                @foreach (var (segment, path) in secondaryPathSegments)
+                                {
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-item">
+                                        @segment
+                                    </button>
+                                }
+                            }
+                        }
+                    </div>
+
+                    <!-- Hidden measurement container -->
+                    <div class="breadcrumb-measure" @ref="measureContainerRef">
+                        @if (!string.IsNullOrEmpty(measureRootPrefix))
+                        {
+                            <button type="button" class="breadcrumb-item" data-measure-root>@measureRootPrefix</button>
+                        }
+                        @foreach (var (segment, path) in measurePathSegments)
                         {
                             <span class="breadcrumb-separator">/</span>
                             <button type="button" class="breadcrumb-item" data-measure-segment>@segment</button>
                         }
                     </div>
 
+                    <!-- New folder button - OUTSIDE breadcrumb -->
                     @if (canCreateFolder)
                     {
                         @if (showCreateInline)
                         {
-                            <!-- Inline folder creation with error state -->
                             <div class="inline-create-container @(createError ? "error" : "")">
                                 <input type="text" 
                                        class="inline-create-input" 
@@ -118,7 +160,6 @@
                                 
                                 @if (createError)
                                 {
-                                    <!-- Error overlay within path box -->
                                     <div class="create-error-overlay">
                                         <i class="bi bi-exclamation-circle"></i>
                                         <span>@createErrorMessage</span>
@@ -133,7 +174,7 @@
                             </div>
                         }
                         else
-        {
+                        {
                             <button type="button" class="btn-new-folder" @onclick="ShowInlineCreate" title="New Folder">
                                 <i class="bi bi-folder-plus"></i>
                             </button>
@@ -143,7 +184,7 @@
             }
         </div>
 
-        <!-- Error Details Popup (hover on question mark) -->
+        <!-- Error Details Popup -->
         @if (showErrorPopup && createError)
         {
             <div class="error-details-popup @(showFullStackTrace ? "expanded" : "")"
@@ -174,7 +215,7 @@
             </div>
         }
 
-        <!-- Error Display - Inline (for general browsing errors) -->
+        <!-- Error Display -->
         @if (!string.IsNullOrEmpty(errorMessage))
         {
             <div class="error-inline">
@@ -314,15 +355,29 @@
     private bool showFullStackTrace = false;
     private ElementReference createInputRef;
     private ElementReference breadcrumbNavRef;
+    private ElementReference breadcrumbNavSecondaryRef;
     private ElementReference measureContainerRef;
     private System.Threading.Timer? hideErrorTimer;
-    private bool isCalculatingBreadcrumb = false;
 
-    // Path truncation support
+    // Dual breadcrumb system
+    private bool showPrimaryBreadcrumb = true;
+
+    // Primary breadcrumb state
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleLeadingSegments = new();
     private (string segment, string path) lastSegment = ("", "");
     private bool showEllipsis = false;
+
+    // Secondary breadcrumb state (for pre-calculation)
+    private string secondaryRootPrefix = "";
+    private List<(string segment, string path)> secondaryPathSegments = new();
+    private List<(string segment, string path)> secondaryVisibleLeadingSegments = new();
+    private (string segment, string path) secondaryLastSegment = ("", "");
+    private bool secondaryShowEllipsis = false;
+
+    // Measurement container state
+    private string measureRootPrefix = "";
+    private List<(string segment, string path)> measurePathSegments = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -337,34 +392,28 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!showRootSelection && pathSegments.Count > 0 && isCalculatingBreadcrumb)
+        if (!showRootSelection && measurePathSegments.Count > 0)
         {
-            await CalculateDynamicTruncation();
-            isCalculatingBreadcrumb = false;
-            StateHasChanged();
+            await CalculateAndSwapBreadcrumb();
         }
     }
 
-    private async Task CalculateDynamicTruncation()
+    private async Task CalculateAndSwapBreadcrumb()
     {
         try
         {
-            // Small delay to ensure DOM is ready
             await Task.Delay(10);
 
-            // Get available width in breadcrumb container
             var containerWidth = await JS.InvokeAsync<double>("eval", 
                 "(function() { var el = document.querySelector('.breadcrumb-nav'); return el ? el.offsetWidth : 0; })()");
             
             if (containerWidth <= 0) return;
 
-            // Reserve space for fixed elements
             var backButtonWidth = 32.0;
             var ellipsisButtonWidth = 36.0;
             var newFolderButtonWidth = canCreateFolder && !showCreateInline ? 60.0 : 0.0;
             var margins = 50.0;
 
-            // Get measurements from invisible container
             var segmentWidths = await JS.InvokeAsync<double[]>("eval", @"
                 (function() {
                     var container = document.querySelector('.breadcrumb-measure');
@@ -389,61 +438,88 @@
 
             if (segmentWidths == null || segmentWidths.Length == 0)
             {
-                showEllipsis = false;
-                visibleLeadingSegments = pathSegments.ToList();
-                return;
-            }
-
-            var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
-            var totalWidth = segmentWidths.Sum();
-
-            if (totalWidth <= availableWidth)
-            {
-                showEllipsis = false;
-                visibleLeadingSegments = pathSegments.ToList();
+                secondaryShowEllipsis = false;
+                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
             }
             else
             {
-                var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
-                var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 20;
+                var availableWidth = containerWidth - backButtonWidth - rootWidth - newFolderButtonWidth - margins;
+                var totalWidth = segmentWidths.Sum();
 
-                var fittingCount = 0;
-                var accumulatedWidth = 0.0;
-
-                for (int i = 0; i < segmentWidths.Length - 1; i++)
+                if (totalWidth <= availableWidth)
                 {
-                    if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
-                    {
-                        accumulatedWidth += segmentWidths[i];
-                        fittingCount++;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    secondaryShowEllipsis = false;
+                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
                 }
-
-                if (fittingCount == 0 && pathSegments.Count > 1)
+                else
                 {
-                    fittingCount = 1;
-                }
+                    var lastSegmentWidth = segmentWidths[segmentWidths.Length - 1];
+                    var availableForLeading = availableWidth - ellipsisButtonWidth - lastSegmentWidth - 20;
 
-                showEllipsis = true;
-                visibleLeadingSegments = pathSegments.Take(fittingCount).ToList();
+                    var fittingCount = 0;
+                    var accumulatedWidth = 0.0;
+
+                    for (int i = 0; i < segmentWidths.Length - 1; i++)
+                    {
+                        if (accumulatedWidth + segmentWidths[i] <= availableForLeading)
+                        {
+                            accumulatedWidth += segmentWidths[i];
+                            fittingCount++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (fittingCount == 0 && secondaryPathSegments.Count > 1)
+                    {
+                        fittingCount = 1;
+                    }
+
+                    secondaryShowEllipsis = true;
+                    secondaryVisibleLeadingSegments = secondaryPathSegments.Take(fittingCount).ToList();
+                }
             }
+
+            // Swap breadcrumbs
+            showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
+            
+            // Copy secondary to primary for next calculation
+            rootPrefix = secondaryRootPrefix;
+            pathSegments = secondaryPathSegments.ToList();
+            visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
+            lastSegment = secondaryLastSegment;
+            showEllipsis = secondaryShowEllipsis;
+
+            // Clear measurement data
+            measureRootPrefix = "";
+            measurePathSegments.Clear();
+
+            StateHasChanged();
         }
         catch
         {
-            if (pathSegments.Count > 3)
+            if (secondaryPathSegments.Count > 3)
             {
-                showEllipsis = true;
-                visibleLeadingSegments = pathSegments.Take(1).ToList();
+                secondaryShowEllipsis = true;
+                secondaryVisibleLeadingSegments = secondaryPathSegments.Take(1).ToList();
             }
             else
             {
-                showEllipsis = false;
-                visibleLeadingSegments = pathSegments.ToList();
+                secondaryShowEllipsis = false;
+                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
             }
+
+            showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
+            rootPrefix = secondaryRootPrefix;
+            pathSegments = secondaryPathSegments.ToList();
+            visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
+            lastSegment = secondaryLastSegment;
+            showEllipsis = secondaryShowEllipsis;
+            measureRootPrefix = "";
+            measurePathSegments.Clear();
+            StateHasChanged();
         }
     }
 
@@ -503,8 +579,9 @@
         visibleLeadingSegments.Clear();
         lastSegment = ("", "");
         showEllipsis = false;
+        secondaryPathSegments.Clear();
+        measurePathSegments.Clear();
         showCreateInline = false;
-        isCalculatingBreadcrumb = false;
         ClearError();
         ClearCreateError();
         StateHasChanged();
@@ -521,7 +598,6 @@
     private async Task NavigateToPath(string path)
     {
         isLoading = true;
-        isCalculatingBreadcrumb = true;
         ClearError();
         ClearCreateError();
         showRootSelection = false;
@@ -539,14 +615,18 @@
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                UpdateRootInfo(currentPath);
-                BuildPathSegments();
+                // Prepare secondary breadcrumb data
+                UpdateRootInfo(currentPath, out secondaryRootPrefix);
+                BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
+                
+                // Prepare measurement data
+                measureRootPrefix = secondaryRootPrefix;
+                measurePathSegments = secondaryPathSegments.ToList();
             }
         }
         catch (Exception ex)
         {
             SetError("Cannot access directory", ex.Message);
-            isCalculatingBreadcrumb = false;
         }
         finally
         {
@@ -555,18 +635,18 @@
         }
     }
 
-    private void UpdateRootInfo(string path)
+    private void UpdateRootInfo(string path, out string outRootPrefix)
     {
         if (string.IsNullOrEmpty(path))
         {
-            rootPrefix = "";
+            outRootPrefix = "";
             rootPath = "";
             return;
         }
 
         if (isWindows && path.StartsWith("\\\\"))
         {
-            rootPrefix = "Network";
+            outRootPrefix = "Network";
             var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length >= 2)
             {
@@ -583,31 +663,32 @@
         }
         else if (isWindows && path.Length >= 2 && path[1] == ':')
         {
-            rootPrefix = path.Substring(0, 2).ToUpper();
-            rootPath = rootPrefix + "\\";
+            outRootPrefix = path.Substring(0, 2).ToUpper();
+            rootPath = outRootPrefix + "\\";
         }
         else if (path.StartsWith("/"))
         {
-            rootPrefix = "/";
+            outRootPrefix = "/";
             rootPath = "/";
         }
         else
         {
-            rootPrefix = "";
+            outRootPrefix = "";
             rootPath = "";
         }
     }
 
-    private void BuildPathSegments()
+    private void BuildPathSegments(string currentPathToBuild, out List<(string segment, string path)> segments, out (string segment, string path) last)
     {
-        pathSegments.Clear();
-        visibleLeadingSegments.Clear();
-        lastSegment = ("", "");
-        showEllipsis = false;
+        segments = new();
+        last = ("", "");
 
-        if (string.IsNullOrEmpty(currentPath)) return;
+        if (string.IsNullOrEmpty(currentPathToBuild))
+        {
+            return;
+        }
 
-        var path = currentPath;
+        var path = currentPathToBuild;
         
         if (isWindows && path.Length >= 2 && path[1] == ':')
         {
@@ -630,36 +711,35 @@
             path = path.Substring(1);
         }
 
-        if (string.IsNullOrEmpty(path)) return;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
 
         var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = currentPath.Substring(0, currentPath.Length - path.Length);
+        var accumulated = currentPathToBuild.Substring(0, currentPathToBuild.Length - path.Length);
 
         foreach (var part in pathParts)
         {
             accumulated += part + Path.DirectorySeparatorChar;
-            pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
+            segments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        visibleLeadingSegments = pathSegments.ToList();
-        if (pathSegments.Count > 0)
+        if (segments.Count > 0)
         {
-            lastSegment = pathSegments[^1];
+            last = segments[^1];
         }
     }
 
     private async Task NavigateUpOneFolder()
     {
-        // Navigate to parent folder (one level up from current)
         if (pathSegments.Count >= 2)
         {
-            // Go to second-to-last segment (parent of current folder)
             var parentSegment = pathSegments[pathSegments.Count - 2];
             await NavigateToPath(parentSegment.path);
         }
         else if (pathSegments.Count == 1)
         {
-            // Only one segment, go to root
             await NavigateToRoot();
         }
     }
@@ -965,15 +1045,18 @@
         overflow: hidden;
         gap: 0.25rem;
         min-height: 32px;
-        transition: opacity 0.15s ease;
     }
 
-    .breadcrumb-nav.calculating {
-        opacity: 0;
-        pointer-events: none;
+    .breadcrumb-nav.hidden {
+        display: none;
     }
 
     .breadcrumb-measure {
+        visibility: hidden;
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+        white-space: nowrap;
         display: flex;
         align-items: center;
         gap: 0.25rem;
