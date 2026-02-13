@@ -1,43 +1,46 @@
-using Autolife.AI.Interfaces;
+using Autolife.Core.Interfaces;
+using Autolife.Core.Models;
 
-namespace Autolife.AI.Providers;
+namespace Autolife.AI.Services;
 
-/// <summary>
-/// Mock AI provider for testing and development without requiring API keys
-/// </summary>
 public class MockAIProvider : IAIProvider
 {
-    public string Name => "Mock AI Provider";
-    public bool IsConfigured => true;
+    private readonly AIProviderConfig _config;
 
-    public Task<string> CompleteAsync(string prompt, AICompletionOptions? options = null)
+    public MockAIProvider(AIProviderConfig config)
     {
-        // Simulate AI response based on prompt keywords
-        if (prompt.ToLower().Contains("summar"))
-        {
-            return Task.FromResult("This is a mock summary of the content. In a real implementation, this would use an actual AI model to generate intelligent summaries.");
-        }
-        
-        if (prompt.ToLower().Contains("search") || prompt.ToLower().Contains("find"))
-        {
-            return Task.FromResult("Mock search results: Found 3 relevant entries in your knowledge base.");
-        }
-        
-        if (prompt.ToLower().Contains("suggest") || prompt.ToLower().Contains("recommend"))
-        {
-            return Task.FromResult("Mock suggestion: Based on your request, I recommend organizing your content with tags and creating project milestones.");
-        }
-
-        return Task.FromResult($"Mock AI response to: {prompt.Substring(0, Math.Min(50, prompt.Length))}...");
+        _config = config;
     }
 
-    public Task<List<string>> GenerateEmbeddingsAsync(string text)
+    public string Name => "Mock AI Provider";
+
+    public async Task<bool> IsHealthyAsync()
     {
-        // Return mock embeddings (in reality this would be a vector representation)
-        var mockEmbeddings = Enumerable.Range(0, 10)
-            .Select(i => (i * 0.1).ToString())
-            .ToList();
-        
-        return Task.FromResult(mockEmbeddings);
+        return true;
+    }
+
+    public async Task<string> GenerateCompletionAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        await Task.Delay(50, cancellationToken);
+        return $"Mock response for: {prompt.Substring(0, Math.Min(100, prompt.Length))}...";
+    }
+
+    public async Task<string> GenerateSummaryAsync(string content, CancellationToken cancellationToken = default)
+    {
+        await Task.Delay(50, cancellationToken);
+        var summary = content.Length > 200 ? content.Substring(0, 200) + "..." : content;
+        return $"Summary: {summary}";
+    }
+
+    public async Task<List<string>> GenerateTagsAsync(string content, CancellationToken cancellationToken = default)
+    {
+        await Task.Delay(50, cancellationToken);
+        return new List<string> { "Mock", "Auto-Generated", "Test" };
+    }
+
+    public async Task<List<string>> SuggestCategoriesAsync(string content, CancellationToken cancellationToken = default)
+    {
+        await Task.Delay(50, cancellationToken);
+        return new List<string> { "General", "Mock Category" };
     }
 }
