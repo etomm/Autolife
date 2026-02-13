@@ -72,19 +72,20 @@
     private string currentTheme = "light";
     private System.Threading.Timer? collapseTimer;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
+        // Subscribe to settings changes
         SettingsManager.OnSettingsChanged += HandleSettingsChanged;
-        await LoadThemeFromLocalStorage();
+        // Don't call JS here - not available during prerendering
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // JS is now available - safe to call
+            await LoadThemeFromLocalStorage();
             await LoadSidebarState();
-            // Theme already loaded by preload script, just sync the state
-            await SyncThemeState();
         }
     }
 
@@ -384,7 +385,7 @@
         margin-left: 70px;
     }
 
-    @@media (max-width: 768px) {
+    @media (max-width: 768px) {
         .sidebar {
             width: 70px;
         }
