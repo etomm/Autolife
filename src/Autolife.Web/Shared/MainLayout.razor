@@ -111,12 +111,13 @@
             case Theme.Auto:
                 try
                 {
-                    // Detect system preference
-                    var prefersDark = await JS.InvokeAsync<bool>("matchMedia", "(prefers-color-scheme: dark)");
+                    // Detect system preference using JavaScript
+                    var prefersDark = await JS.InvokeAsync<bool>("eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
                     currentTheme = prefersDark ? "dark" : "light";
                 }
                 catch
                 {
+                    // Fallback to light theme if detection fails
                     currentTheme = "light";
                 }
                 break;
