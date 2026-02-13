@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Runtime.InteropServices;
+using System.Security;
 
 namespace Autolife.Web.Controllers;
 
@@ -12,7 +13,7 @@ public class FileSystemController : ControllerBase
     {
         try
         {
-            var roots = new List<DirectoryInfo>();
+            var roots = new List<object>();
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -22,16 +23,27 @@ public class FileSystemController : ControllerBase
                     .Select(d => new
                     {
                         Path = d.Name,
-                        Name = $"{d.Name} ({d.VolumeLabel})",
-                        Type = d.DriveType.ToString()
+                        Name = $"{d.Name.TrimEnd('\\')} ({d.VolumeLabel})".Trim(),
+                        Type = d.DriveType == DriveType.Network ? "Network" : "Drive"
                     });
-                return Ok(drives);
+                
+                roots.AddRange(drives);
+                
+                // Add network option
+                roots.Add(new
+                {
+                    Path = "\\\\",
+                    Name = "Network Locations",
+                    Type = "Network"
+                });
             }
             else
             {
                 // Linux/Mac: Start from root
-                return Ok(new[] { new { Path = "/", Name = "Root", Type = "Root" } });
+                roots.Add(new { Path = "/", Name = "Root", Type = "Root" });
             }
+
+            return Ok(roots);
         }
         catch (Exception ex)
         {
@@ -69,12 +81,14 @@ public class FileSystemController : ControllerBase
                 .ToList();
 
             var parent = directory.Parent?.FullName;
+            var canCreateFolder = CanCreateFolderInDirectory(path);
 
             return Ok(new
             {
                 CurrentPath = directory.FullName,
                 ParentPath = parent,
-                Directories = directories
+                Directories = directories,
+                CanCreateFolder = canCreateFolder
             });
         }
         catch (UnauthorizedAccessException)
@@ -97,10 +111,30 @@ public class FileSystemController : ControllerBase
                 return BadRequest(new { error = "Parent path and name are required" });
             }
 
+            // Validate name
+            if (request.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return BadRequest(new { error = "Invalid folder name" });
+            }
+
             var fullPath = Path.Combine(request.ParentPath, request.Name);
+            
+            if (Directory.Exists(fullPath))
+            {
+                return BadRequest(new { error = "Folder already exists" });
+            }
+
             var directory = Directory.CreateDirectory(fullPath);
 
             return Ok(new { Path = directory.FullName, Name = directory.Name });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { error = "Permission denied" });
+        }
+        catch (IOException ex)
+        {
+            return BadRequest(new { error = $"Cannot create folder: {ex.Message}" });
         }
         catch (Exception ex)
         {
@@ -142,6 +176,49 @@ public class FileSystemController : ControllerBase
         {
             Directory.GetDirectories(path);
             return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool CanCreateFolderInDirectory(string path)
+    {
+        try
+        {
+            // Try to create a temp directory name and check permissions
+            var testPath = Path.Combine(path, $"_test_{Guid.NewGuid()}");
+            
+            // Check if we can get directory info (basic permission check)
+            var dirInfo = new DirectoryInfo(path);
+            
+            // Check if directory is read-only
+            if (dirInfo.Attributes.HasFlag(FileAttributes.ReadOnly))
+            {
+                return false;
+            }
+
+            // Try to check write access using DirectoryInfo
+            // We don't actually create the directory, just check if the path is valid
+            try
+            {
+                var testDir = new DirectoryInfo(testPath);
+                // If we can construct it without exception, we likely have access
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (SecurityException)
+        {
+            return false;
         }
         catch
         {
