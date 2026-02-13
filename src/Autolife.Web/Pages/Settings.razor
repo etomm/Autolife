@@ -12,176 +12,187 @@
 <div class="settings-container">
     <h1><i class="bi bi-gear"></i> Settings</h1>
 
-    <!-- UI Settings Section -->
-    <div class="settings-section">
-        <h2><i class="bi bi-palette"></i> User Interface</h2>
-        <div class="settings-grid">
-            <div class="setting-item">
-                <label class="setting-label">Theme</label>
-                <select class="form-control" @bind="currentThemeString" @bind:after="SaveUserSettings">
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="auto">Auto</option>
-                </select>
+    @if (isInitialized)
+    {
+        <!-- UI Settings Section -->
+        <div class="settings-section">
+            <h2><i class="bi bi-palette"></i> User Interface</h2>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label class="setting-label">Theme</label>
+                    <select class="form-control" @bind="currentThemeString" @bind:after="SaveUserSettings">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="auto">Auto</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">Language</label>
+                    <select class="form-control" @bind="userSettings.Language" @bind:after="SaveUserSettings">
+                        <option>English</option>
+                        <option>Italian</option>
+                        <option>Spanish</option>
+                        <option>French</option>
+                        <option>German</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">Date Format</label>
+                    <select class="form-control" @bind="userSettings.DateFormat" @bind:after="SaveUserSettings">
+                        <option value="@DateFormat.MMDDYYYY">MM/DD/YYYY</option>
+                        <option value="@DateFormat.DDMMYYYY">DD/MM/YYYY</option>
+                        <option value="@DateFormat.YYYYMMDD">YYYY-MM-DD</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">Items per page</label>
+                    <input type="number" class="form-control" @bind="userSettings.ItemsPerPage" @bind:after="SaveUserSettings" min="10" max="100" />
+                </div>
             </div>
-            <div class="setting-item">
-                <label class="setting-label">Language</label>
-                <select class="form-control" @bind="userSettings.Language" @bind:after="SaveUserSettings">
-                    <option>English</option>
-                    <option>Italian</option>
-                    <option>Spanish</option>
-                    <option>French</option>
-                    <option>German</option>
-                </select>
-            </div>
-            <div class="setting-item">
-                <label class="setting-label">Date Format</label>
-                <select class="form-control" @bind="userSettings.DateFormat" @bind:after="SaveUserSettings">
-                    <option value="@DateFormat.MMDDYYYY">MM/DD/YYYY</option>
-                    <option value="@DateFormat.DDMMYYYY">DD/MM/YYYY</option>
-                    <option value="@DateFormat.YYYYMMDD">YYYY-MM-DD</option>
-                </select>
-            </div>
-            <div class="setting-item">
-                <label class="setting-label">Items per page</label>
-                <input type="number" class="form-control" @bind="userSettings.ItemsPerPage" @bind:after="SaveUserSettings" min="10" max="100" />
-            </div>
+            @if (showSavedMessage)
+            {
+                <div class="saved-indicator">
+                    <i class="bi bi-check-circle-fill"></i> Settings saved
+                </div>
+            }
         </div>
-        @if (showSavedMessage)
-        {
-            <div class="saved-indicator">
-                <i class="bi bi-check-circle-fill"></i> Settings saved
-            </div>
-        }
-    </div>
 
-    <!-- AI Providers Section -->
-    <div class="settings-section">
-        <div class="section-header">
-            <h2><i class="bi bi-robot"></i> AI Providers</h2>
-            <button class="btn btn-primary" @onclick="() => showAddDialog = true">
-                <i class="bi bi-plus-lg"></i> Add Provider
-            </button>
-        </div>
-        
-        <p class="section-description">Manage AI providers in priority order. Drag to reorder - top providers are tried first, with automatic fallback to lower ones if they fail.</p>
-
-        @if (isLoading)
-        {
-            <div class="text-center p-4">
-                <div class="spinner-border" role="status"></div>
+        <!-- AI Providers Section -->
+        <div class="settings-section">
+            <div class="section-header">
+                <h2><i class="bi bi-robot"></i> AI Providers</h2>
+                <button class="btn btn-primary" @onclick="() => showAddDialog = true">
+                    <i class="bi bi-plus-lg"></i> Add Provider
+                </button>
             </div>
-        }
-        else if (providers.Any())
-        {
-            <div class="providers-list">
-                @foreach (var provider in providers.OrderBy(p => p.Priority))
-                {
-                    <div class="provider-card @(provider.IsEnabled ? "" : "disabled")" draggable="true">
-                        <div class="drag-handle">
-                            <i class="bi bi-grip-vertical"></i>
-                        </div>
-                        <div class="provider-content">
-                            <div class="provider-main">
-                                <div class="provider-info">
-                                    <div class="provider-name-row">
-                                        <h4>@provider.Name</h4>
-                                        <span class="status-badge status-@provider.Status.ToString().ToLower()">
-                                            <i class="bi bi-circle-fill"></i> @provider.Status
-                                        </span>
+            
+            <p class="section-description">Manage AI providers in priority order. Drag to reorder - top providers are tried first, with automatic fallback to lower ones if they fail.</p>
+
+            @if (isLoading)
+            {
+                <div class="text-center p-4">
+                    <div class="spinner-border" role="status"></div>
+                </div>
+            }
+            else if (providers.Any())
+            {
+                <div class="providers-list">
+                    @foreach (var provider in providers.OrderBy(p => p.Priority))
+                    {
+                        <div class="provider-card @(provider.IsEnabled ? "" : "disabled")" draggable="true">
+                            <div class="drag-handle">
+                                <i class="bi bi-grip-vertical"></i>
+                            </div>
+                            <div class="provider-content">
+                                <div class="provider-main">
+                                    <div class="provider-info">
+                                        <div class="provider-name-row">
+                                            <h4>@provider.Name</h4>
+                                            <span class="status-badge status-@provider.Status.ToString().ToLower()">
+                                                <i class="bi bi-circle-fill"></i> @provider.Status
+                                            </span>
+                                        </div>
+                                        <div class="provider-meta">
+                                            <span class="meta-item"><i class="bi bi-tag"></i> @provider.Type</span>
+                                            <span class="meta-item"><i class="bi bi-cpu"></i> @provider.Model</span>
+                                            @if (!provider.IsEnabled)
+                                            {
+                                                <span class="meta-item disabled-badge"><i class="bi bi-pause-circle"></i> Disabled</span>
+                                            }
+                                        </div>
                                     </div>
-                                    <div class="provider-meta">
-                                        <span class="meta-item"><i class="bi bi-tag"></i> @provider.Type</span>
-                                        <span class="meta-item"><i class="bi bi-cpu"></i> @provider.Model</span>
-                                        @if (!provider.IsEnabled)
+                                    <div class="provider-actions">
+                                        <button class="btn-icon" @onclick="() => EditProvider(provider)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn-icon" @onclick="() => DeleteProvider(provider.Id)" title="Delete">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                @if (provider.LastSuccessfulCall.HasValue || provider.ConsecutiveFailures > 0)
+                                {
+                                    <div class="provider-stats">
+                                        @if (provider.LastSuccessfulCall.HasValue)
                                         {
-                                            <span class="meta-item disabled-badge"><i class="bi bi-pause-circle"></i> Disabled</span>
+                                            <span class="stat-item success">
+                                                <i class="bi bi-check-circle"></i> Last success: @provider.LastSuccessfulCall.Value.ToLocalTime().ToString("g")
+                                            </span>
+                                        }
+                                        @if (provider.ConsecutiveFailures > 0)
+                                        {
+                                            <span class="stat-item failure">
+                                                <i class="bi bi-exclamation-triangle"></i> @provider.ConsecutiveFailures consecutive failures
+                                            </span>
                                         }
                                     </div>
-                                </div>
-                                <div class="provider-actions">
-                                    <button class="btn-icon" @onclick="() => EditProvider(provider)" title="Edit">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn-icon" @onclick="() => DeleteProvider(provider.Id)" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
+                                }
                             </div>
-                            @if (provider.LastSuccessfulCall.HasValue || provider.ConsecutiveFailures > 0)
-                            {
-                                <div class="provider-stats">
-                                    @if (provider.LastSuccessfulCall.HasValue)
-                                    {
-                                        <span class="stat-item success">
-                                            <i class="bi bi-check-circle"></i> Last success: @provider.LastSuccessfulCall.Value.ToLocalTime().ToString("g")
-                                        </span>
-                                    }
-                                    @if (provider.ConsecutiveFailures > 0)
-                                    {
-                                        <span class="stat-item failure">
-                                            <i class="bi bi-exclamation-triangle"></i> @provider.ConsecutiveFailures consecutive failures
-                                        </span>
-                                    }
-                                </div>
-                            }
                         </div>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="empty-state">
-                <i class="bi bi-robot"></i>
-                <p>No AI providers configured.</p>
-                <button class="btn btn-primary" @onclick="() => showAddDialog = true">Add Your First Provider</button>
-            </div>
-        }
-    </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="bi bi-robot"></i>
+                    <p>No AI providers configured.</p>
+                    <button class="btn btn-primary" @onclick="() => showAddDialog = true">Add Your First Provider</button>
+                </div>
+            }
+        </div>
 
-    <!-- Repository Settings Section -->
-    <div class="settings-section">
-        <h2><i class="bi bi-database"></i> Repository</h2>
-        <div class="settings-grid">
-            <div class="setting-item full-width">
-                <label class="setting-label">Storage Type</label>
-                <select class="form-control" @bind="repositorySettings.StorageType" @bind:after="SaveRepositorySettings">
-                    <option value="@StorageType.InMemory">In-Memory (Default)</option>
-                    <option value="@StorageType.LocalGit">Local Git Repository</option>
-                    <option value="@StorageType.SQLite">SQLite Database</option>
-                    <option value="@StorageType.PostgreSQL">PostgreSQL</option>
-                </select>
-            </div>
-            <div class="setting-item full-width">
-                <label class="setting-label">Local Repository Path</label>
-                <div class="path-input-group">
-                    <input type="text" class="form-control" @bind="repositorySettings.LocalRepositoryPath" @bind:after="SaveRepositorySettings" placeholder="/path/to/autolife-data" />
-                    <button class="btn btn-primary" @onclick="() => showFolderBrowser = true">
-                        <i class="bi bi-folder2-open"></i> Browse
-                    </button>
+        <!-- Repository Settings Section -->
+        <div class="settings-section">
+            <h2><i class="bi bi-database"></i> Repository</h2>
+            <div class="settings-grid">
+                <div class="setting-item full-width">
+                    <label class="setting-label">Storage Type</label>
+                    <select class="form-control" @bind="repositorySettings.StorageType" @bind:after="SaveRepositorySettings">
+                        <option value="@StorageType.InMemory">In-Memory (Default)</option>
+                        <option value="@StorageType.LocalGit">Local Git Repository</option>
+                        <option value="@StorageType.SQLite">SQLite Database</option>
+                        <option value="@StorageType.PostgreSQL">PostgreSQL</option>
+                    </select>
+                </div>
+                <div class="setting-item full-width">
+                    <label class="setting-label">Local Repository Path</label>
+                    <div class="path-input-group">
+                        <input type="text" class="form-control" @bind="repositorySettings.LocalRepositoryPath" @bind:after="SaveRepositorySettings" placeholder="/path/to/autolife-data" />
+                        <button class="btn btn-primary" @onclick="() => showFolderBrowser = true">
+                            <i class="bi bi-folder2-open"></i> Browse
+                        </button>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">Auto-commit changes</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoCommit" @bind:after="SaveRepositorySettings" />
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">Auto-backup</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoBackup" @bind:after="SaveRepositorySettings" />
+                    </div>
                 </div>
             </div>
-            <div class="setting-item">
-                <label class="setting-label">Auto-commit changes</label>
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoCommit" @bind:after="SaveRepositorySettings" />
+            @if (showRepoSavedMessage)
+            {
+                <div class="saved-indicator">
+                    <i class="bi bi-check-circle-fill"></i> Repository settings saved
                 </div>
-            </div>
-            <div class="setting-item">
-                <label class="setting-label">Auto-backup</label>
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" @bind="repositorySettings.AutoBackup" @bind:after="SaveRepositorySettings" />
-                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
             </div>
         </div>
-        @if (showRepoSavedMessage)
-        {
-            <div class="saved-indicator">
-                <i class="bi bi-check-circle-fill"></i> Repository settings saved
-            </div>
-        }
-    </div>
+    }
 </div>
 
 @if (showAddDialog || showEditDialog)
@@ -262,6 +273,7 @@
     private RepositorySettings repositorySettings = new();
     private string currentThemeString = "light";
     private bool isLoading = true;
+    private bool isInitialized = false;
     private bool showAddDialog = false;
     private bool showEditDialog = false;
     private bool showFolderBrowser = false;
@@ -273,12 +285,24 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Load from SettingsManager first
+        // CRITICAL: Load theme from localStorage FIRST before anything else
+        await LoadThemePreference();
+        
+        // Then load other settings from SettingsManager
         userSettings = SettingsManager.GetUserSettings();
         repositorySettings = SettingsManager.GetRepositorySettings();
         
-        // Load theme preference from localStorage (actual user selection)
-        await LoadThemePreference();
+        // Update userSettings.Theme to match what we loaded from localStorage
+        userSettings.Theme = currentThemeString.ToLower() switch
+        {
+            "auto" => Theme.Auto,
+            "dark" => Theme.Dark,
+            "light" => Theme.Light,
+            _ => Theme.Light
+        };
+        
+        // Mark as initialized so UI can render
+        isInitialized = true;
         
         await LoadProviders();
     }
@@ -294,26 +318,19 @@
             {
                 // Use stored string value directly
                 currentThemeString = storedTheme.ToLower();
-                
-                // Also update the enum for consistency
-                userSettings.Theme = storedTheme.ToLower() switch
-                {
-                    "auto" => Theme.Auto,
-                    "dark" => Theme.Dark,
-                    "light" => Theme.Light,
-                    _ => Theme.Light
-                };
             }
             else
             {
-                // Use settings manager value
-                currentThemeString = userSettings.Theme.ToString().ToLower();
+                // First time - no localStorage value, use default
+                currentThemeString = "light";
+                // Save to localStorage
+                await JS.InvokeVoidAsync("eval", "localStorage.setItem('theme', 'light');");
             }
         }
         catch
         {
-            // Keep SettingsManager value if localStorage fails
-            currentThemeString = userSettings.Theme.ToString().ToLower();
+            // If localStorage fails, use default
+            currentThemeString = "light";
         }
     }
 
