@@ -75,16 +75,74 @@
     protected override async Task OnInitializedAsync()
     {
         SettingsManager.OnSettingsChanged += HandleSettingsChanged;
-        await UpdateTheme();
+        await LoadThemeFromLocalStorage();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            await UpdateTheme();
             await LoadSidebarState();
+            await LoadThemeFromLocalStorage();
         }
+    }
+
+    private async Task LoadThemeFromLocalStorage()
+    {
+        try
+        {
+            // Load theme from localStorage (client-side preference)
+            var storedTheme = await JS.InvokeAsync<string?>("eval", "localStorage.getItem('theme')");
+            
+            if (!string.IsNullOrEmpty(storedTheme))
+            {
+                // User has a stored preference
+                await ApplyTheme(storedTheme);
+            }
+            else
+            {
+                // No stored preference, check settings manager and default to light
+                var settings = SettingsManager.GetUserSettings();
+                await ApplyTheme(settings.Theme.ToString().ToLower());
+            }
+        }
+        catch
+        {
+            // Fallback to light theme if localStorage not available
+            currentTheme = "light";
+        }
+    }
+
+    private async Task ApplyTheme(string theme)
+    {
+        theme = theme.ToLower();
+        
+        switch (theme)
+        {
+            case "dark":
+                currentTheme = "dark";
+                break;
+            case "light":
+                currentTheme = "light";
+                break;
+            case "auto":
+                try
+                {
+                    // Detect system preference using JavaScript
+                    var prefersDark = await JS.InvokeAsync<bool>("eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
+                    currentTheme = prefersDark ? "dark" : "light";
+                }
+                catch
+                {
+                    currentTheme = "light";
+                }
+                break;
+            default:
+                currentTheme = "light";
+                break;
+        }
+        
+        StateHasChanged();
     }
 
     private async Task LoadSidebarState()
@@ -132,36 +190,9 @@
 
     private async void HandleSettingsChanged()
     {
-        await UpdateTheme();
+        // When settings change (from Settings page), reload theme
+        await LoadThemeFromLocalStorage();
         await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task UpdateTheme()
-    {
-        var settings = SettingsManager.GetUserSettings();
-        
-        switch (settings.Theme)
-        {
-            case Theme.Dark:
-                currentTheme = "dark";
-                break;
-            case Theme.Light:
-                currentTheme = "light";
-                break;
-            case Theme.Auto:
-                try
-                {
-                    // Detect system preference using JavaScript
-                    var prefersDark = await JS.InvokeAsync<bool>("eval", "window.matchMedia('(prefers-color-scheme: dark)').matches");
-                    currentTheme = prefersDark ? "dark" : "light";
-                }
-                catch
-                {
-                    // Fallback to light theme if detection fails
-                    currentTheme = "light";
-                }
-                break;
-        }
     }
 
     public void Dispose()
