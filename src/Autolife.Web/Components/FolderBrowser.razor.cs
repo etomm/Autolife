@@ -46,17 +46,16 @@ public partial class FolderBrowser : IDisposable
     private bool _disposed = false;
 
     // Dual breadcrumb system
-    private bool showPrimaryBreadcrumb = true;
     private bool needsCalculation = false;
     private bool isCalculating = false;
 
-    // Primary breadcrumb state
+    // Primary breadcrumb state (always shown)
     private List<(string segment, string path)> pathSegments = new();
     private List<(string segment, string path)> visibleLeadingSegments = new();
     private (string segment, string path) lastSegment = ("", "");
     private bool showEllipsis = false;
 
-    // Secondary breadcrumb state (for pre-calculation)
+    // Secondary breadcrumb state (for measuring, always hidden)
     private string secondaryRootPrefix = "";
     private List<(string segment, string path)> secondaryPathSegments = new();
     private List<(string segment, string path)> secondaryVisibleLeadingSegments = new();
@@ -111,16 +110,11 @@ public partial class FolderBrowser : IDisposable
 
             if (_disposed) return;
 
-            // Measure content width (grows with breadcrumb items)
+            // Measure content width (grows with breadcrumb items) from HIDDEN secondary
             var contentWidth = await JS.InvokeAsync<double>("eval", @"
                 (function() {
-                    var contents = document.querySelectorAll('.breadcrumb-content');
-                    for (var i = 0; i < contents.length; i++) {
-                        if (contents[i].parentElement.classList.contains('hidden')) {
-                            return contents[i].scrollWidth;
-                        }
-                    }
-                    return 0;
+                    var container = document.querySelector('.breadcrumb-nav.hidden .breadcrumb-content');
+                    return container ? container.scrollWidth : 0;
                 })()
             ");
             
@@ -234,17 +228,14 @@ public partial class FolderBrowser : IDisposable
     {
         if (_disposed) return;
 
-        // Swap visibility
-        showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
-        
-        // Copy secondary to primary
+        // Copy calculated secondary data to primary (which is always visible)
         rootPrefix = secondaryRootPrefix;
         pathSegments = secondaryPathSegments.ToList();
         visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
         lastSegment = secondaryLastSegment;
         showEllipsis = secondaryShowEllipsis;
         
-        // Clear secondary state
+        // Clear secondary state for next calculation
         secondaryRootPrefix = "";
         secondaryPathSegments.Clear();
         secondaryVisibleLeadingSegments.Clear();
