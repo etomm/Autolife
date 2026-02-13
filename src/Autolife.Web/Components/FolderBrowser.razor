@@ -79,7 +79,7 @@
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "hidden" : "")" @ref="breadcrumbNavSecondaryRef">
                         @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                         {
-                            <button type="button" class="breadcrumb-item">
+                            <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
                                 @secondaryRootPrefix
                             </button>
                         }
@@ -90,19 +90,21 @@
                             {
                                 @foreach (var (segment, path) in secondaryVisibleLeadingSegments)
                                 {
+                                    var capturedPath = path;
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item">
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                                         @segment
                                     </button>
                                 }
                                 <span class="breadcrumb-separator">/</span>
-                                <button type="button" class="breadcrumb-ellipsis">
+                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
                                     <span>..</span>
                                 </button>
                                 @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
                                 {
+                                    var capturedPath = secondaryLastSegment.path;
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item">
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                                         @secondaryLastSegment.segment
                                     </button>
                                 }
@@ -111,8 +113,9 @@
                             {
                                 @foreach (var (segment, path) in secondaryPathSegments)
                                 {
+                                    var capturedPath = path;
                                     <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item">
+                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
                                         @segment
                                     </button>
                                 }
