@@ -8,6 +8,8 @@
     --text-tertiary: #95a5a6;
     --border-color: #e9ecef;
     --shadow: rgba(0, 0, 0, 0.1);
+    --input-bg: #ffffff;
+    --input-border: #dee2e6;
     --accent-color: #667eea;
     --accent-hover: #5568d3;
 }
@@ -21,8 +23,10 @@
     --text-tertiary: #a0aec0;
     --border-color: #4a5568;
     --shadow: rgba(0, 0, 0, 0.3);
-    --accent-color: #667eea;
-    --accent-hover: #7c8ff0;
+    --input-bg: #374151;
+    --input-border: #4a5568;
+    --accent-color: #7c8ff0;
+    --accent-hover: #8a9ef5;
 }
 
 body {
@@ -31,9 +35,15 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Main content area */
+.main-content {
+    background-color: var(--bg-primary) !important;
+}
+
+/* Cards and sections */
 .settings-section,
 .knowledge-card,
-.document-item,
+.documents-list,
 .project-card,
 .empty-state,
 .modal-content,
@@ -41,38 +51,67 @@ body {
     background-color: var(--bg-secondary) !important;
     color: var(--text-primary) !important;
     border-color: var(--border-color) !important;
+    box-shadow: 0 2px 8px var(--shadow) !important;
 }
 
+/* Headings */
 .settings-section h2,
 .knowledge-card h3,
 .project-card h3,
-.page-header h1 {
+.page-header h1,
+h1, h2, h3, h4, h5 {
     color: var(--text-primary) !important;
 }
 
+/* Paragraphs and secondary text */
 .settings-section .section-description,
 .knowledge-card p,
 .project-card p,
-.empty-state p {
+.empty-state p,
+.doc-info p {
     color: var(--text-secondary) !important;
 }
 
+/* Labels */
+.setting-label,
+.form-label,
+label {
+    color: var(--text-primary) !important;
+}
+
+/* Form controls */
 .form-control,
-.form-select {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    border-color: var(--border-color);
+.form-select,
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    background-color: var(--input-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--input-border) !important;
+}
+
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: var(--text-tertiary) !important;
 }
 
 .form-control:focus,
-.form-select:focus {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    border-color: var(--accent-color);
+.form-select:focus,
+input:focus,
+textarea:focus,
+select:focus {
+    background-color: var(--input-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
 }
 
-.provider-card,
-.documents-list {
+/* Provider cards */
+.provider-card {
     background-color: var(--bg-tertiary) !important;
     border-color: var(--border-color) !important;
 }
@@ -81,16 +120,109 @@ body {
     background-color: var(--bg-secondary) !important;
 }
 
-.drag-handle {
-    background-color: var(--border-color) !important;
+.provider-card h4,
+.provider-name-row h4 {
+    color: var(--text-primary) !important;
 }
 
-.meta-item,
-.stat-item,
-.date {
+.drag-handle {
+    background-color: var(--bg-tertiary) !important;
     color: var(--text-tertiary) !important;
 }
 
-.modal-backdrop {
-    background: rgba(0, 0, 0, 0.6);
+.drag-handle:hover {
+    background-color: var(--border-color) !important;
+}
+
+/* Meta items and stats */
+.meta-item,
+.stat-item,
+.date,
+.progress-text {
+    color: var(--text-secondary) !important;
+}
+
+/* Document items */
+.document-item {
+    background-color: transparent !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+.document-item:hover {
+    background-color: var(--bg-tertiary) !important;
+}
+
+.doc-info h4 {
+    color: var(--text-primary) !important;
+}
+
+.doc-icon {
+    background-color: var(--bg-tertiary) !important;
+}
+
+/* Modal */
+.modal-header,
+.modal-footer {
+    border-color: var(--border-color) !important;
+}
+
+.modal-header h5 {
+    color: var(--text-primary) !important;
+}
+
+/* Empty state icons */
+.empty-icon i {
+    color: var(--text-tertiary) !important;
+}
+
+/* Buttons - Keep primary style consistent */
+.btn-outline-primary {
+    color: var(--accent-color) !important;
+    border-color: var(--accent-color) !important;
+    background-color: transparent !important;
+}
+
+.btn-outline-primary:hover {
+    color: white !important;
+    background-color: var(--accent-color) !important;
+    border-color: var(--accent-color) !important;
+}
+
+/* Icon buttons */
+.btn-icon {
+    background-color: var(--bg-secondary) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-secondary) !important;
+}
+
+.btn-icon:hover {
+    background-color: var(--accent-color) !important;
+    border-color: var(--accent-color) !important;
+    color: white !important;
+}
+
+/* Switch/checkbox */
+.form-check-input {
+    background-color: var(--input-bg) !important;
+    border-color: var(--input-border) !important;
+}
+
+.form-check-input:checked {
+    background-color: var(--accent-color) !important;
+    border-color: var(--accent-color) !important;
+}
+
+/* Search bar specific */
+.search-bar .form-control {
+    background-color: var(--input-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--input-border) !important;
+}
+
+/* Toolbar */
+.toolbar input,
+.toolbar select {
+    background-color: var(--input-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--input-border) !important;
 }
