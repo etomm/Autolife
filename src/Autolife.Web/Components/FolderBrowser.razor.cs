@@ -156,12 +156,11 @@ public partial class FolderBrowser : IDisposable
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                // Extract root prefix and build path segments
-                ExtractRootInfo(currentPath);
-                var segments = BuildPathSegments(currentPath);
+                // Build ALL segments (including root)
+                var segments = BuildAllSegments(currentPath);
                 
                 // Send to client-side JavaScript for rendering
-                await UpdateClientBreadcrumb(rootPrefix, rootPath, segments);
+                await UpdateClientBreadcrumb(segments);
             }
         }
         catch (Exception ex)
@@ -178,50 +177,7 @@ public partial class FolderBrowser : IDisposable
         }
     }
 
-    private void ExtractRootInfo(string path)
-    {
-        if (string.IsNullOrEmpty(path))
-        {
-            rootPrefix = "";
-            rootPath = "";
-            return;
-        }
-
-        if (isWindows && path.StartsWith("\\\\"))
-        {
-            rootPrefix = "Network";
-            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-            {
-                rootPath = $"\\\\{parts[0]}\\{parts[1]}";
-            }
-            else if (parts.Length == 1)
-            {
-                rootPath = $"\\\\{parts[0]}";
-            }
-            else
-            {
-                rootPath = "\\\\";
-            }
-        }
-        else if (isWindows && path.Length >= 2 && path[1] == ':')
-        {
-            rootPrefix = path.Substring(0, 2).ToUpper();
-            rootPath = rootPrefix + "\\";
-        }
-        else if (path.StartsWith("/"))
-        {
-            rootPrefix = "/";
-            rootPath = "/";
-        }
-        else
-        {
-            rootPrefix = "";
-            rootPath = "";
-        }
-    }
-
-    private List<BreadcrumbSegment> BuildPathSegments(string fullPath)
+    private List<BreadcrumbSegment> BuildAllSegments(string fullPath)
     {
         var segments = new List<BreadcrumbSegment>();
         
@@ -230,59 +186,97 @@ public partial class FolderBrowser : IDisposable
             return segments;
         }
 
-        var path = fullPath;
-        
-        // Strip root prefix
-        if (isWindows && path.Length >= 2 && path[1] == ':')
+        // Windows drive letter (C:, D:, etc.)
+        if (isWindows && fullPath.Length >= 2 && fullPath[1] == ':')
         {
-            path = path.Substring(2).TrimStart('\\', '/');
-        }
-        else if (isWindows && path.StartsWith("\\\\"))
-        {
-            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 2)
-            {
-                path = string.Join("\\", parts.Skip(2));
-            }
-            else
-            {
-                path = "";
-            }
-        }
-        else if (path.StartsWith("/"))
-        {
-            path = path.Substring(1);
-        }
-
-        if (string.IsNullOrEmpty(path))
-        {
-            return segments;
-        }
-
-        var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = fullPath.Substring(0, fullPath.Length - path.Length);
-
-        foreach (var part in pathParts)
-        {
-            accumulated += part + System.IO.Path.DirectorySeparatorChar;
+            var driveLetter = fullPath.Substring(0, 2).ToUpper();
             segments.Add(new BreadcrumbSegment
             {
-                Label = part,
-                Path = accumulated.TrimEnd(System.IO.Path.DirectorySeparatorChar)
+                Label = driveLetter,
+                Path = driveLetter + "\\"
             });
+            
+            var remaining = fullPath.Substring(2).TrimStart('\\', '/');
+            if (!string.IsNullOrEmpty(remaining))
+            {
+                AddPathParts(segments, remaining, driveLetter + "\\");
+            }
+        }
+        // Windows network path (\\server\share)
+        else if (isWindows && fullPath.StartsWith("\\\\"))
+        {
+            var parts = fullPath.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            if (parts.Length >= 1)
+            {
+                // Server
+                segments.Add(new BreadcrumbSegment
+                {
+                    Label = parts[0],
+                    Path = $"\\\\{parts[0]}"
+                });
+            }
+            
+            if (parts.Length >= 2)
+            {
+                // Share
+                segments.Add(new BreadcrumbSegment
+                {
+                    Label = parts[1],
+                    Path = $"\\\\{parts[0]}\\{parts[1]}"
+                });
+            }
+            
+            if (parts.Length > 2)
+            {
+                // Remaining path
+                var basePath = $"\\\\{parts[0]}\\{parts[1]}";
+                var remaining = string.Join("\\", parts.Skip(2));
+                AddPathParts(segments, remaining, basePath + "\\");
+            }
+        }
+        // Unix/Linux path (/home/user/...)
+        else if (fullPath.StartsWith("/"))
+        {
+            segments.Add(new BreadcrumbSegment
+            {
+                Label = "/",
+                Path = "/"
+            });
+            
+            var remaining = fullPath.Substring(1);
+            if (!string.IsNullOrEmpty(remaining))
+            {
+                AddPathParts(segments, remaining, "/");
+            }
         }
 
         return segments;
     }
 
-    private async Task UpdateClientBreadcrumb(string prefix, string prefixPath, List<BreadcrumbSegment> segments)
+    private void AddPathParts(List<BreadcrumbSegment> segments, string remaining, string basePath)
+    {
+        var parts = remaining.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        var accumulated = basePath;
+        
+        foreach (var part in parts)
+        {
+            accumulated += part;
+            segments.Add(new BreadcrumbSegment
+            {
+                Label = part,
+                Path = accumulated
+            });
+            accumulated += System.IO.Path.DirectorySeparatorChar;
+        }
+    }
+
+    private async Task UpdateClientBreadcrumb(List<BreadcrumbSegment> segments)
     {
         try
         {
             var pathData = new
             {
-                rootPrefix = prefix,
-                rootPath = prefixPath,
                 segments = segments.Select(s => new { label = s.Label, path = s.Path }).ToArray()
             };
             
