@@ -43,6 +43,7 @@ public partial class FolderBrowser : IDisposable
     private ElementReference breadcrumbNavSecondaryRef;
     private ElementReference breadcrumbContentSecondaryRef;
     private System.Threading.Timer? hideErrorTimer;
+    private bool _disposed = false;
 
     // Dual breadcrumb system
     private bool showPrimaryBreadcrumb = true;
@@ -75,20 +76,30 @@ public partial class FolderBrowser : IDisposable
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_disposed) return;
+
         if (!showRootSelection && needsCalculation)
         {
             await CalculateAndSwapBreadcrumb();
             needsCalculation = false;
             isCalculating = false;
-            StateHasChanged();
+            
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
         }
     }
 
     private async Task CalculateAndSwapBreadcrumb()
     {
+        if (_disposed) return;
+
         try
         {
             await Task.Delay(10);
+
+            if (_disposed) return;
 
             // Measure container width (fixed by path box)
             var containerWidth = await JS.InvokeAsync<double>("eval", @"
@@ -97,6 +108,8 @@ public partial class FolderBrowser : IDisposable
                     return container ? container.offsetWidth : 0;
                 })()
             ");
+
+            if (_disposed) return;
 
             // Measure content width (grows with breadcrumb items)
             var contentWidth = await JS.InvokeAsync<double>("eval", @"
@@ -111,6 +124,8 @@ public partial class FolderBrowser : IDisposable
                 })()
             ");
             
+            if (_disposed) return;
+
             if (containerWidth <= 0 || contentWidth <= 0)
             {
                 secondaryShowEllipsis = false;
@@ -145,6 +160,8 @@ public partial class FolderBrowser : IDisposable
                     
                     for (int i = 0; i < secondaryPathSegments.Count - 1; i++) // -1 to exclude last segment
                     {
+                        if (_disposed) return;
+
                         var width = await JS.InvokeAsync<double>("eval", $@"
                             (function() {{
                                 var segment = document.querySelector('.breadcrumb-nav.hidden [data-measure-segment=""{i}""]');
@@ -164,6 +181,8 @@ public partial class FolderBrowser : IDisposable
                         segmentWidths.Add(width);
                         Console.WriteLine($"Segment {i} ({secondaryPathSegments[i].segment}): {width}px");
                     }
+
+                    if (_disposed) return;
 
                     // Calculate how many segments to remove
                     var ellipsisWidth = 50.0; // Approximate width of ellipsis button + separator
@@ -194,19 +213,27 @@ public partial class FolderBrowser : IDisposable
                 }
             }
 
-            SwapBreadcrumbs();
+            if (!_disposed)
+            {
+                SwapBreadcrumbs();
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Breadcrumb calculation error: {ex.Message}");
-            secondaryShowEllipsis = false;
-            secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-            SwapBreadcrumbs();
+            if (!_disposed)
+            {
+                secondaryShowEllipsis = false;
+                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
+                SwapBreadcrumbs();
+            }
         }
     }
 
     private void SwapBreadcrumbs()
     {
+        if (_disposed) return;
+
         // Swap visibility
         showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
         
@@ -227,6 +254,8 @@ public partial class FolderBrowser : IDisposable
 
     private async Task LoadRoots()
     {
+        if (_disposed) return;
+
         isLoading = true;
         ClearError();
         try
@@ -246,12 +275,17 @@ public partial class FolderBrowser : IDisposable
         finally
         {
             isLoading = false;
-            StateHasChanged();
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
         }
     }
 
     private async Task SelectRoot(string path)
     {
+        if (_disposed) return;
+
         if (path == "")
         {
             try
@@ -270,6 +304,8 @@ public partial class FolderBrowser : IDisposable
 
     private void ShowRoots()
     {
+        if (_disposed) return;
+
         showRootSelection = true;
         currentPath = "";
         selectedPath = "";
@@ -292,6 +328,8 @@ public partial class FolderBrowser : IDisposable
 
     private async Task NavigateToRoot()
     {
+        if (_disposed) return;
+
         if (!string.IsNullOrEmpty(rootPath))
         {
             await NavigateToPath(rootPath);
@@ -300,6 +338,8 @@ public partial class FolderBrowser : IDisposable
 
     private async Task NavigateToPath(string path)
     {
+        if (_disposed) return;
+
         if (path == currentPath)
         {
             return;
@@ -338,7 +378,10 @@ public partial class FolderBrowser : IDisposable
         finally
         {
             isLoading = false;
-            StateHasChanged();
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
         }
     }
 
@@ -440,6 +483,8 @@ public partial class FolderBrowser : IDisposable
 
     private async Task NavigateUpOneFolder()
     {
+        if (_disposed) return;
+
         if (pathSegments.Count >= 2)
         {
             var parentSegment = pathSegments[pathSegments.Count - 2];
@@ -453,12 +498,16 @@ public partial class FolderBrowser : IDisposable
 
     private async Task SelectDirectory(string path)
     {
+        if (_disposed) return;
+
         selectedPath = path;
         await NavigateToPath(path);
     }
 
     private async Task ShowInlineCreate()
     {
+        if (_disposed) return;
+
         showCreateInline = true;
         newFolderName = "";
         ClearCreateError();
@@ -473,6 +522,8 @@ public partial class FolderBrowser : IDisposable
 
     private void CancelInlineCreate()
     {
+        if (_disposed) return;
+
         showCreateInline = false;
         newFolderName = "";
         ClearCreateError();
@@ -481,6 +532,8 @@ public partial class FolderBrowser : IDisposable
 
     private async Task HandleCreateFolderKeyUp(KeyboardEventArgs e)
     {
+        if (_disposed) return;
+
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newFolderName))
         {
             await CreateFolder();
@@ -493,6 +546,7 @@ public partial class FolderBrowser : IDisposable
 
     private async Task CreateFolder()
     {
+        if (_disposed) return;
         if (string.IsNullOrWhiteSpace(newFolderName)) return;
 
         ClearCreateError();
@@ -515,13 +569,19 @@ public partial class FolderBrowser : IDisposable
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 SetCreateError("Cannot create folder", errorContent, "HTTP " + response.StatusCode);
-                StateHasChanged();
+                if (!_disposed)
+                {
+                    StateHasChanged();
+                }
             }
         }
         catch (Exception ex)
         {
             SetCreateError("Creation failed", ex.Message, ex.StackTrace ?? "No stack trace available");
-            StateHasChanged();
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
         }
     }
 
@@ -547,6 +607,8 @@ public partial class FolderBrowser : IDisposable
 
     private void ShowErrorDetails()
     {
+        if (_disposed) return;
+
         if (createError)
         {
             hideErrorTimer?.Dispose();
@@ -564,19 +626,26 @@ public partial class FolderBrowser : IDisposable
 
     private void StartHideErrorTimer()
     {
+        if (_disposed) return;
+
         hideErrorTimer = new System.Threading.Timer(_ =>
         {
             InvokeAsync(() =>
             {
-                showErrorPopup = false;
-                showFullStackTrace = false;
-                StateHasChanged();
+                if (!_disposed)
+                {
+                    showErrorPopup = false;
+                    showFullStackTrace = false;
+                    StateHasChanged();
+                }
             });
         }, null, 150, System.Threading.Timeout.Infinite);
     }
 
     private void HideErrorDetails()
     {
+        if (_disposed) return;
+
         showErrorPopup = false;
         showFullStackTrace = false;
         hideErrorTimer?.Dispose();
@@ -586,6 +655,8 @@ public partial class FolderBrowser : IDisposable
 
     private void ToggleStackTrace()
     {
+        if (_disposed) return;
+
         showFullStackTrace = !showFullStackTrace;
         StateHasChanged();
     }
@@ -608,11 +679,15 @@ public partial class FolderBrowser : IDisposable
 
     private void ToggleErrorDetails()
     {
+        if (_disposed) return;
+
         showErrorDetails = !showErrorDetails;
     }
 
     private async Task ConfirmSelection()
     {
+        if (_disposed) return;
+
         if (!string.IsNullOrEmpty(selectedPath))
         {
             await OnPathSelected.InvokeAsync(selectedPath);
@@ -621,12 +696,16 @@ public partial class FolderBrowser : IDisposable
 
     private async Task HandleCancel()
     {
+        if (_disposed) return;
+
         await OnCancelled.InvokeAsync();
     }
 
     public void Dispose()
     {
+        _disposed = true;
         hideErrorTimer?.Dispose();
+        hideErrorTimer = null;
     }
 
     private class RootInfo
