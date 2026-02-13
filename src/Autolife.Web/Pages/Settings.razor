@@ -1,6 +1,7 @@
 @page "/settings"
 @using Autolife.Core.Interfaces
 @using Autolife.Core.Models
+@using Autolife.Web.Components
 @inject IAIProviderManager ProviderManager
 @inject ISettingsManager SettingsManager
 @implements IDisposable
@@ -153,7 +154,12 @@
             </div>
             <div class="setting-item full-width">
                 <label class="setting-label">Local Repository Path</label>
-                <input type="text" class="form-control" @bind="repositorySettings.LocalRepositoryPath" @bind:after="SaveRepositorySettings" placeholder="/path/to/autolife-data" />
+                <div class="path-input-group">
+                    <input type="text" class="form-control" @bind="repositorySettings.LocalRepositoryPath" @bind:after="SaveRepositorySettings" placeholder="/path/to/autolife-data" />
+                    <button class="btn btn-primary" @onclick="() => showFolderBrowser = true">
+                        <i class="bi bi-folder2-open"></i> Browse
+                    </button>
+                </div>
             </div>
             <div class="setting-item">
                 <label class="setting-label">Auto-commit changes</label>
@@ -237,6 +243,18 @@
     </div>
 }
 
+@if (showFolderBrowser)
+{
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog large">
+        <FolderBrowser 
+            Title="Select Repository Path"
+            InitialPath="@repositorySettings.LocalRepositoryPath"
+            OnPathSelected="HandlePathSelected"
+            OnCancelled="() => showFolderBrowser = false" />
+    </div>
+}
+
 @code {
     private List<AIProviderConfig> providers = new();
     private UserSettings userSettings = new();
@@ -244,6 +262,7 @@
     private bool isLoading = true;
     private bool showAddDialog = false;
     private bool showEditDialog = false;
+    private bool showFolderBrowser = false;
     private bool showSavedMessage = false;
     private bool showRepoSavedMessage = false;
     private AIProviderConfig editingProvider = new();
@@ -268,6 +287,13 @@
         {
             isLoading = false;
         }
+    }
+
+    private void HandlePathSelected(string path)
+    {
+        repositorySettings.LocalRepositoryPath = path;
+        showFolderBrowser = false;
+        SaveRepositorySettings();
     }
 
     private void SaveUserSettings()
@@ -450,6 +476,15 @@
         font-weight: 500;
         color: #2c3e50;
         font-size: 0.95rem;
+    }
+
+    .path-input-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .path-input-group input {
+        flex: 1;
     }
 
     .saved-indicator {
@@ -639,7 +674,7 @@
     .stat-item.failure {
         color: #dc3545;
     }
-
+    
     .empty-state {
         text-align: center;
         padding: 3rem 2rem;
@@ -672,6 +707,10 @@
         max-width: 600px;
         max-height: 90vh;
         overflow-y: auto;
+    }
+
+    .modal-dialog.large {
+        max-width: 900px;
     }
 
     .modal-content {
