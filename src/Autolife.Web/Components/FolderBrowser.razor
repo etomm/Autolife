@@ -1,6 +1,3 @@
-@inject HttpClient Http
-@inject IJSRuntime JS
-
 <div class="folder-browser" @onclick:stopPropagation="true">
     <div class="browser-header">
         <h5>@Title</h5>
@@ -27,119 +24,123 @@
 
                     <!-- Primary breadcrumb container -->
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "" : "hidden")" @ref="breadcrumbNavRef">
-                        @if (!string.IsNullOrEmpty(rootPrefix))
-                        {
-                            <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
-                                @rootPrefix
-                            </button>
-                        }
-                        
-                        @if (pathSegments.Count > 0)
-                        {
-                            @if (showEllipsis)
+                        <div class="breadcrumb-content">
+                            @if (!string.IsNullOrEmpty(rootPrefix))
                             {
-                                @foreach (var (segment, path) in visibleLeadingSegments)
-                                {
-                                    var capturedPath = path;
-                                    <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                        @segment
-                                    </button>
-                                }
-                                <span class="breadcrumb-separator">/</span>
-                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
-                                    <span>..</span>
+                                <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
+                                    @rootPrefix
                                 </button>
-                                @if (!string.IsNullOrEmpty(lastSegment.segment))
-                                {
-                                    var capturedPath = lastSegment.path;
-                                    <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item breadcrumb-current">
-                                        @lastSegment.segment
-                                    </button>
-                                }
                             }
-                            else
+                            
+                            @if (pathSegments.Count > 0)
                             {
-                                @for (int i = 0; i < pathSegments.Count; i++)
+                                @if (showEllipsis)
                                 {
-                                    var segment = pathSegments[i];
-                                    var capturedPath = segment.path;
-                                    var isLast = (i == pathSegments.Count - 1);
-                                    <span class="breadcrumb-separator">/</span>
-                                    @if (isLast)
+                                    @foreach (var (segment, path) in visibleLeadingSegments)
                                     {
-                                        <button type="button" class="breadcrumb-item breadcrumb-current">
-                                            @segment.segment
+                                        var capturedPath = path;
+                                        <span class="breadcrumb-separator">/</span>
+                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                            @segment
                                         </button>
                                     }
-                                    else
+                                    <span class="breadcrumb-separator">/</span>
+                                    <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
+                                        <span>..</span>
+                                    </button>
+                                    @if (!string.IsNullOrEmpty(lastSegment.segment))
                                     {
-                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                            @segment.segment
+                                        var capturedPath = lastSegment.path;
+                                        <span class="breadcrumb-separator">/</span>
+                                        <button type="button" class="breadcrumb-item breadcrumb-current">
+                                            @lastSegment.segment
                                         </button>
                                     }
                                 }
+                                else
+                                {
+                                    @for (int i = 0; i < pathSegments.Count; i++)
+                                    {
+                                        var segment = pathSegments[i];
+                                        var capturedPath = segment.path;
+                                        var isLast = (i == pathSegments.Count - 1);
+                                        <span class="breadcrumb-separator">/</span>
+                                        @if (isLast)
+                                        {
+                                            <button type="button" class="breadcrumb-item breadcrumb-current">
+                                                @segment.segment
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                                @segment.segment
+                                            </button>
+                                        }
+                                    }
+                                }
                             }
-                        }
+                        </div>
                     </div>
 
                     <!-- Hidden breadcrumb container (for pre-calculation) -->
                     <div class="breadcrumb-nav @(showPrimaryBreadcrumb ? "hidden" : "")" @ref="breadcrumbNavSecondaryRef">
-                        @if (!string.IsNullOrEmpty(secondaryRootPrefix))
-                        {
-                            <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
-                                @secondaryRootPrefix
-                            </button>
-                        }
-                        
-                        @if (secondaryPathSegments.Count > 0)
-                        {
-                            @if (secondaryShowEllipsis)
+                        <div class="breadcrumb-content" @ref="breadcrumbContentSecondaryRef">
+                            @if (!string.IsNullOrEmpty(secondaryRootPrefix))
                             {
-                                @foreach (var (segment, path) in secondaryVisibleLeadingSegments)
-                                {
-                                    var capturedPath = path;
-                                    <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                        @segment
-                                    </button>
-                                }
-                                <span class="breadcrumb-separator">/</span>
-                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
-                                    <span>..</span>
+                                <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
+                                    @secondaryRootPrefix
                                 </button>
-                                @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
-                                {
-                                    <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-item breadcrumb-current">
-                                        @secondaryLastSegment.segment
-                                    </button>
-                                }
                             }
-                            else
+                            
+                            @if (secondaryPathSegments.Count > 0)
                             {
-                                @for (int i = 0; i < secondaryPathSegments.Count; i++)
+                                @if (secondaryShowEllipsis)
                                 {
-                                    var segment = secondaryPathSegments[i];
-                                    var capturedPath = segment.path;
-                                    var isLast = (i == secondaryPathSegments.Count - 1);
-                                    <span class="breadcrumb-separator">/</span>
-                                    @if (isLast)
+                                    @foreach (var (segment, path) in secondaryVisibleLeadingSegments)
                                     {
-                                        <button type="button" class="breadcrumb-item breadcrumb-current">
-                                            @segment.segment
+                                        var capturedPath = path;
+                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
+                                        <button type="button" class="breadcrumb-item" data-measure-segment="@secondaryVisibleLeadingSegments.IndexOf((segment, path))" @onclick="async () => await NavigateToPath(capturedPath)">
+                                            @segment
                                         </button>
                                     }
-                                    else
+                                    <span class="breadcrumb-separator" data-measure-sep>/</span>
+                                    <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
+                                        <span>..</span>
+                                    </button>
+                                    @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
                                     {
-                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                            @segment.segment
+                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
+                                        <button type="button" class="breadcrumb-item breadcrumb-current">
+                                            @secondaryLastSegment.segment
                                         </button>
                                     }
                                 }
+                                else
+                                {
+                                    @for (int i = 0; i < secondaryPathSegments.Count; i++)
+                                    {
+                                        var segment = secondaryPathSegments[i];
+                                        var capturedPath = segment.path;
+                                        var isLast = (i == secondaryPathSegments.Count - 1);
+                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
+                                        @if (isLast)
+                                        {
+                                            <button type="button" class="breadcrumb-item breadcrumb-current" data-measure-segment="@i">
+                                                @segment.segment
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button type="button" class="breadcrumb-item" data-measure-segment="@i" @onclick="async () => await NavigateToPath(capturedPath)">
+                                                @segment.segment
+                                            </button>
+                                        }
+                                    }
+                                }
                             }
-                        }
+                        </div>
                     </div>
 
                     <!-- New folder button - OUTSIDE breadcrumb -->
@@ -326,626 +327,6 @@
     </div>
 </div>
 
-@code {
-    [Parameter]
-    public string Title { get; set; } = "Select Folder";
-    
-    [Parameter]
-    public string InitialPath { get; set; } = "";
-    
-    [Parameter]
-    public EventCallback<string> OnPathSelected { get; set; }
-    
-    [Parameter]
-    public EventCallback OnCancelled { get; set; }
-
-    private List<RootInfo> roots = new();
-    private List<DirectoryInfo> directories = new();
-    private string currentPath = "";
-    private string parentPath = "";
-    private string selectedPath = "";
-    private string rootPrefix = "";
-    private string rootPath = "";
-    private bool isLoading = false;
-    private bool showRootSelection = true;
-    private bool canCreateFolder = false;
-    private string newFolderName = "";
-    private string errorMessage = "";
-    private string errorSummary = "";
-    private string errorDetails = "";
-    private bool showErrorDetails = false;
-    private bool createError = false;
-    private string createErrorMessage = "";
-    private string createErrorDetails = "";
-    private string createStackTrace = "";
-    private bool isWindows = false;
-    private bool showCreateInline = false;
-    private bool showErrorPopup = false;
-    private bool showFullStackTrace = false;
-    private ElementReference createInputRef;
-    private ElementReference breadcrumbNavRef;
-    private ElementReference breadcrumbNavSecondaryRef;
-    private System.Threading.Timer? hideErrorTimer;
-
-    // Dual breadcrumb system
-    private bool showPrimaryBreadcrumb = true;
-    private bool needsCalculation = false;
-    private bool isCalculating = false;
-
-    // Primary breadcrumb state
-    private List<(string segment, string path)> pathSegments = new();
-    private List<(string segment, string path)> visibleLeadingSegments = new();
-    private (string segment, string path) lastSegment = ("", "");
-    private bool showEllipsis = false;
-
-    // Secondary breadcrumb state (for pre-calculation)
-    private string secondaryRootPrefix = "";
-    private List<(string segment, string path)> secondaryPathSegments = new();
-    private List<(string segment, string path)> secondaryVisibleLeadingSegments = new();
-    private (string segment, string path) secondaryLastSegment = ("", "");
-    private bool secondaryShowEllipsis = false;
-
-    protected override async Task OnInitializedAsync()
-    {
-        isWindows = OperatingSystem.IsWindows();
-        await LoadRoots();
-        
-        if (!string.IsNullOrEmpty(InitialPath) && Directory.Exists(InitialPath))
-        {
-            await NavigateToPath(InitialPath);
-        }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!showRootSelection && needsCalculation)
-        {
-            await CalculateAndSwapBreadcrumb();
-            needsCalculation = false;
-            isCalculating = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task CalculateAndSwapBreadcrumb()
-    {
-        try
-        {
-            await Task.Delay(10);
-
-            // Get the hidden breadcrumb div reference
-            var hiddenRef = showPrimaryBreadcrumb ? breadcrumbNavSecondaryRef : breadcrumbNavRef;
-            
-            var hiddenWidth = await JS.InvokeAsync<double>("eval", $@"
-                (function() {{
-                    var containers = document.querySelectorAll('.breadcrumb-nav');
-                    for (var i = 0; i < containers.length; i++) {{
-                        if (containers[i].classList.contains('hidden')) {{
-                            return containers[i].scrollWidth;
-                        }}
-                    }}
-                    return 0;
-                }})()
-            ");
-
-            var containerWidth = await JS.InvokeAsync<double>("eval", 
-                "(function() { var el = document.querySelector('.breadcrumb-nav:not(.hidden)'); return el ? el.offsetWidth : 0; })()");
-            
-            if (containerWidth <= 0 || hiddenWidth <= 0)
-            {
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                SwapBreadcrumbs();
-                return;
-            }
-
-            var availableWidth = containerWidth - 20; // Small margin
-
-            // Check if all segments fit
-            if (hiddenWidth <= availableWidth)
-            {
-                secondaryShowEllipsis = false;
-                secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-            }
-            else
-            {
-                // Need to shorten - calculate which segments to hide
-                // Strategy: Keep first segments + .. + last segment
-                // Remove segments from the end towards the beginning until it fits
-                
-                var ellipsisWidth = 50.0; // Approximate width of .. button
-                var targetWidth = availableWidth - ellipsisWidth;
-
-                // Always keep the last segment
-                if (secondaryPathSegments.Count > 1)
-                {
-                    var keepCount = 0;
-                    
-                    // Start with just root + last, then add segments from the beginning
-                    for (int i = 0; i < secondaryPathSegments.Count - 1; i++)
-                    {
-                        // Try adding this segment
-                        keepCount = i + 1;
-                        
-                        // Rebuild to measure (simplified approach)
-                        // For now, use a heuristic: each segment is ~80px average
-                        var estimatedWidth = (keepCount * 80) + ellipsisWidth + 80; // +80 for last segment
-                        
-                        if (estimatedWidth > targetWidth)
-                        {
-                            keepCount = Math.Max(0, keepCount - 1);
-                            break;
-                        }
-                    }
-
-                    secondaryShowEllipsis = true;
-                    secondaryVisibleLeadingSegments = keepCount > 0 
-                        ? secondaryPathSegments.Take(keepCount).ToList() 
-                        : new List<(string, string)>();
-                }
-                else
-                {
-                    // Only one segment, show it even if it overflows
-                    secondaryShowEllipsis = false;
-                    secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-                }
-            }
-
-            SwapBreadcrumbs();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Breadcrumb calculation error: {ex.Message}");
-            secondaryShowEllipsis = false;
-            secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
-            SwapBreadcrumbs();
-        }
-    }
-
-    private void SwapBreadcrumbs()
-    {
-        // Swap visibility
-        showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
-        
-        // Copy secondary to primary for next calculation
-        rootPrefix = secondaryRootPrefix;
-        pathSegments = secondaryPathSegments.ToList();
-        visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
-        lastSegment = secondaryLastSegment;
-        showEllipsis = secondaryShowEllipsis;
-    }
-
-    private async Task LoadRoots()
-    {
-        isLoading = true;
-        ClearError();
-        try
-        {
-            var response = await Http.GetFromJsonAsync<List<RootInfo>>("/api/filesystem/roots");
-            roots = response ?? new();
-            
-            if (!isWindows)
-            {
-                roots = roots.Where(r => r.Type != "Network").ToList();
-            }
-        }
-        catch (Exception ex)
-        {
-            SetError("Failed to load drives", ex.Message);
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task SelectRoot(string path)
-    {
-        if (path == "")
-        {
-            try
-            {
-                await NavigateToPath("\\\\");
-            }
-            catch
-            {
-                SetError("Network locations not accessible", "Cannot browse network. Ensure network access is enabled and you have permissions.");
-            }
-            return;
-        }
-        
-        await NavigateToPath(path);
-    }
-
-    private void ShowRoots()
-    {
-        showRootSelection = true;
-        currentPath = "";
-        selectedPath = "";
-        rootPrefix = "";
-        rootPath = "";
-        directories.Clear();
-        canCreateFolder = false;
-        pathSegments.Clear();
-        visibleLeadingSegments.Clear();
-        lastSegment = ("", "");
-        showEllipsis = false;
-        secondaryPathSegments.Clear();
-        showCreateInline = false;
-        needsCalculation = false;
-        isCalculating = false;
-        ClearError();
-        ClearCreateError();
-        StateHasChanged();
-    }
-
-    private async Task NavigateToRoot()
-    {
-        if (!string.IsNullOrEmpty(rootPath))
-        {
-            await NavigateToPath(rootPath);
-        }
-    }
-
-    private async Task NavigateToPath(string path)
-    {
-        // Don't navigate if we're already at this path
-        if (path == currentPath)
-        {
-            return;
-        }
-
-        isLoading = true;
-        isCalculating = true;
-        ClearError();
-        ClearCreateError();
-        showRootSelection = false;
-        showCreateInline = false;
-
-        try
-        {
-            var response = await Http.GetFromJsonAsync<BrowseResponse>($"/api/filesystem/browse?path={Uri.EscapeDataString(path)}");
-            if (response != null)
-            {
-                currentPath = response.CurrentPath;
-                parentPath = response.ParentPath ?? "";
-                directories = response.Directories;
-                selectedPath = currentPath;
-                canCreateFolder = response.CanCreateFolder;
-                
-                // Prepare secondary breadcrumb data
-                UpdateRootInfo(currentPath, out secondaryRootPrefix);
-                BuildPathSegments(currentPath, out secondaryPathSegments, out secondaryLastSegment);
-
-                // Trigger calculation on next render
-                needsCalculation = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            SetError("Cannot access directory", ex.Message);
-            needsCalculation = false;
-            isCalculating = false;
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private void UpdateRootInfo(string path, out string outRootPrefix)
-    {
-        if (string.IsNullOrEmpty(path))
-        {
-            outRootPrefix = "";
-            rootPath = "";
-            return;
-        }
-
-        if (isWindows && path.StartsWith("\\\\"))
-        {
-            outRootPrefix = "Network";
-            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-            {
-                rootPath = $"\\\\{parts[0]}\\{parts[1]}";
-            }
-            else if (parts.Length == 1)
-            {
-                rootPath = $"\\\\{parts[0]}";
-            }
-            else
-            {
-                rootPath = "\\\\";
-            }
-        }
-        else if (isWindows && path.Length >= 2 && path[1] == ':')
-        {
-            outRootPrefix = path.Substring(0, 2).ToUpper();
-            rootPath = outRootPrefix + "\\";
-        }
-        else if (path.StartsWith("/"))
-        {
-            outRootPrefix = "/";
-            rootPath = "/";
-        }
-        else
-        {
-            outRootPrefix = "";
-            rootPath = "";
-        }
-    }
-
-    private void BuildPathSegments(string currentPathToBuild, out List<(string segment, string path)> segments, out (string segment, string path) last)
-    {
-        segments = new();
-        last = ("", "");
-
-        if (string.IsNullOrEmpty(currentPathToBuild))
-        {
-            return;
-        }
-
-        var path = currentPathToBuild;
-        
-        if (isWindows && path.Length >= 2 && path[1] == ':')
-        {
-            path = path.Substring(2).TrimStart('\\', '/');
-        }
-        else if (isWindows && path.StartsWith("\\\\"))
-        {
-            var parts = path.Substring(2).Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 2)
-            {
-                path = string.Join("\\", parts.Skip(2));
-            }
-            else
-            {
-                path = "";
-            }
-        }
-        else if (path.StartsWith("/"))
-        {
-            path = path.Substring(1);
-        }
-
-        if (string.IsNullOrEmpty(path))
-        {
-            return;
-        }
-
-        var pathParts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-        var accumulated = currentPathToBuild.Substring(0, currentPathToBuild.Length - path.Length);
-
-        foreach (var part in pathParts)
-        {
-            accumulated += part + Path.DirectorySeparatorChar;
-            segments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
-        }
-
-        if (segments.Count > 0)
-        {
-            last = segments[^1];
-        }
-    }
-
-    private async Task NavigateUpOneFolder()
-    {
-        if (pathSegments.Count >= 2)
-        {
-            var parentSegment = pathSegments[pathSegments.Count - 2];
-            await NavigateToPath(parentSegment.path);
-        }
-        else if (pathSegments.Count == 1)
-        {
-            await NavigateToRoot();
-        }
-    }
-
-    private async Task SelectDirectory(string path)
-    {
-        selectedPath = path;
-        await NavigateToPath(path);
-    }
-
-    private async Task ShowInlineCreate()
-    {
-        showCreateInline = true;
-        newFolderName = "";
-        ClearCreateError();
-        StateHasChanged();
-        
-        try
-        {
-            await JS.InvokeAsync<object>("eval", "setTimeout(function() { var input = document.querySelector('.inline-create-input'); if(input) input.focus(); }, 100)");
-        }
-        catch { }
-    }
-
-    private void CancelInlineCreate()
-    {
-        showCreateInline = false;
-        newFolderName = "";
-        ClearCreateError();
-        StateHasChanged();
-    }
-
-    private async Task HandleCreateFolderKeyUp(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newFolderName))
-        {
-            await CreateFolder();
-        }
-        else if (e.Key == "Escape")
-        {
-            CancelInlineCreate();
-        }
-    }
-
-    private async Task CreateFolder()
-    {
-        if (string.IsNullOrWhiteSpace(newFolderName)) return;
-
-        ClearCreateError();
-
-        try
-        {
-            var response = await Http.PostAsJsonAsync("/api/filesystem/create", new
-            {
-                ParentPath = currentPath,
-                Name = newFolderName
-            });
-
-            if (response.IsSuccessStatusCode)
-            {
-                showCreateInline = false;
-                newFolderName = "";
-                await NavigateToPath(currentPath);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                SetCreateError("Cannot create folder", errorContent, "HTTP " + response.StatusCode);
-                StateHasChanged();
-            }
-        }
-        catch (Exception ex)
-        {
-            SetCreateError("Creation failed", ex.Message, ex.StackTrace ?? "No stack trace available");
-            StateHasChanged();
-        }
-    }
-
-    private void SetCreateError(string message, string details, string stackTrace)
-    {
-        createError = true;
-        createErrorMessage = message;
-        createErrorDetails = details;
-        createStackTrace = stackTrace;
-    }
-
-    private void ClearCreateError()
-    {
-        createError = false;
-        createErrorMessage = "";
-        createErrorDetails = "";
-        createStackTrace = "";
-        showErrorPopup = false;
-        showFullStackTrace = false;
-        hideErrorTimer?.Dispose();
-        hideErrorTimer = null;
-    }
-
-    private void ShowErrorDetails()
-    {
-        if (createError)
-        {
-            hideErrorTimer?.Dispose();
-            hideErrorTimer = null;
-            showErrorPopup = true;
-            StateHasChanged();
-        }
-    }
-
-    private void KeepErrorDetailsVisible()
-    {
-        hideErrorTimer?.Dispose();
-        hideErrorTimer = null;
-    }
-
-    private void StartHideErrorTimer()
-    {
-        hideErrorTimer = new System.Threading.Timer(_ =>
-        {
-            InvokeAsync(() =>
-            {
-                showErrorPopup = false;
-                showFullStackTrace = false;
-                StateHasChanged();
-            });
-        }, null, 150, System.Threading.Timeout.Infinite);
-    }
-
-    private void HideErrorDetails()
-    {
-        showErrorPopup = false;
-        showFullStackTrace = false;
-        hideErrorTimer?.Dispose();
-        hideErrorTimer = null;
-        StateHasChanged();
-    }
-
-    private void ToggleStackTrace()
-    {
-        showFullStackTrace = !showFullStackTrace;
-        StateHasChanged();
-    }
-
-    private void SetError(string summary, string details)
-    {
-        errorSummary = summary;
-        errorDetails = details;
-        errorMessage = summary;
-        showErrorDetails = false;
-    }
-
-    private void ClearError()
-    {
-        errorMessage = "";
-        errorSummary = "";
-        errorDetails = "";
-        showErrorDetails = false;
-    }
-
-    private void ToggleErrorDetails()
-    {
-        showErrorDetails = !showErrorDetails;
-    }
-
-    private async Task ConfirmSelection()
-    {
-        if (!string.IsNullOrEmpty(selectedPath))
-        {
-            await OnPathSelected.InvokeAsync(selectedPath);
-        }
-    }
-
-    private async Task HandleCancel()
-    {
-        await OnCancelled.InvokeAsync();
-    }
-
-    public void Dispose()
-    {
-        hideErrorTimer?.Dispose();
-    }
-
-    private class RootInfo
-    {
-        public string Path { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Type { get; set; } = "";
-    }
-
-    private class DirectoryInfo
-    {
-        public string Name { get; set; } = "";
-        public string Path { get; set; } = "";
-        public DateTime LastModified { get; set; }
-        public bool IsAccessible { get; set; }
-    }
-
-    private class BrowseResponse
-    {
-        public string CurrentPath { get; set; } = "";
-        public string? ParentPath { get; set; }
-        public List<DirectoryInfo> Directories { get; set; } = new();
-        public bool CanCreateFolder { get; set; }
-    }
-}
-
 <style>
     .folder-browser {
         display: flex;
@@ -1044,16 +425,21 @@
 
     .breadcrumb-nav {
         flex: 1;
-        display: flex;
-        align-items: center;
-        flex-wrap: nowrap;
         overflow: hidden;
-        gap: 0.25rem;
         min-height: 32px;
     }
 
     .breadcrumb-nav.hidden {
         display: none;
+    }
+
+    .breadcrumb-content {
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 0.25rem;
+        width: max-content;
+        min-width: 100%;
     }
 
     .breadcrumb-back {
