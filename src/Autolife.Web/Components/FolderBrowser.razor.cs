@@ -92,17 +92,12 @@ public partial class FolderBrowser : IDisposable
             // Measure container width (fixed by path box)
             var containerWidth = await JS.InvokeAsync<double>("eval", @"
                 (function() {
-                    var containers = document.querySelectorAll('.breadcrumb-nav');
-                    for (var i = 0; i < containers.length; i++) {
-                        if (containers[i].classList.contains('hidden')) {
-                            return containers[i].offsetWidth;
-                        }
-                    }
-                    return 0;
+                    var container = document.querySelector('.breadcrumb-nav:not(.hidden)');
+                    return container ? container.offsetWidth : 0;
                 })()
             ");
 
-            // Measure content width (grows with content)
+            // Measure content width (grows with breadcrumb items)
             var contentWidth = await JS.InvokeAsync<double>("eval", @"
                 (function() {
                     var contents = document.querySelectorAll('.breadcrumb-content');
@@ -126,41 +121,57 @@ public partial class FolderBrowser : IDisposable
             var overflow = contentWidth - containerWidth;
             Console.WriteLine($"Container: {containerWidth}px, Content: {contentWidth}px, Overflow: {overflow}px");
 
+            // Small margin for safety
             if (overflow <= 10)
             {
+                // Everything fits
                 secondaryShowEllipsis = false;
                 secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
             }
             else
             {
+                // Need to add ellipsis and hide segments
                 if (secondaryPathSegments.Count <= 1)
                 {
+                    // Only one segment - show it even if it overflows
                     secondaryShowEllipsis = false;
                     secondaryVisibleLeadingSegments = secondaryPathSegments.ToList();
                 }
                 else
                 {
-                    // Measure individual segment widths
+                    // Measure individual segment widths from the hidden breadcrumb
                     var segmentWidths = new List<double>();
-                    for (int i = 0; i < secondaryPathSegments.Count - 1; i++)
+                    
+                    for (int i = 0; i < secondaryPathSegments.Count - 1; i++) // -1 to exclude last segment
                     {
                         var width = await JS.InvokeAsync<double>("eval", $@"
                             (function() {{
-                                var seg = document.querySelector('[data-measure-segment=""{i}""]');
-                                if (!seg) return 0;
-                                var sep = seg.previousElementSibling;
-                                return seg.offsetWidth + (sep && sep.hasAttribute('data-measure-sep') ? sep.offsetWidth : 0);
+                                var segment = document.querySelector('.breadcrumb-nav.hidden [data-measure-segment=""{i}""]');
+                                if (!segment) return 0;
+                                
+                                // Find preceding separator
+                                var prev = segment.previousElementSibling;
+                                var sepWidth = 0;
+                                if (prev && prev.hasAttribute('data-measure-sep')) {{
+                                    sepWidth = prev.offsetWidth;
+                                }}
+                                
+                                return segment.offsetWidth + sepWidth;
                             }})()
                         ");
+                        
                         segmentWidths.Add(width);
+                        Console.WriteLine($"Segment {i} ({secondaryPathSegments[i].segment}): {width}px");
                     }
 
-                    var ellipsisWidth = 50.0;
+                    // Calculate how many segments to remove
+                    var ellipsisWidth = 50.0; // Approximate width of ellipsis button + separator
                     var targetRemoval = overflow + ellipsisWidth;
                     var accumulatedRemoval = 0.0;
                     var keepCount = 0;
 
-                    for (int i = segmentWidths.Count - 1; i >= 0; i--)
+                    // Remove segments from the beginning (after root) until we've removed enough
+                    for (int i = 0; i < segmentWidths.Count; i++)
                     {
                         if (accumulatedRemoval < targetRemoval)
                         {
@@ -168,12 +179,12 @@ public partial class FolderBrowser : IDisposable
                         }
                         else
                         {
-                            keepCount = i + 1;
+                            keepCount = i;
                             break;
                         }
                     }
 
-                    Console.WriteLine($"Need to remove {targetRemoval}px, keeping {keepCount} segments");
+                    Console.WriteLine($"Need to remove {targetRemoval}px, accumulated {accumulatedRemoval}px, keeping {keepCount} segments");
 
                     secondaryShowEllipsis = true;
                     secondaryVisibleLeadingSegments = keepCount > 0 
@@ -195,12 +206,17 @@ public partial class FolderBrowser : IDisposable
 
     private void SwapBreadcrumbs()
     {
+        // Swap visibility
         showPrimaryBreadcrumb = !showPrimaryBreadcrumb;
+        
+        // Copy secondary to primary
         rootPrefix = secondaryRootPrefix;
         pathSegments = secondaryPathSegments.ToList();
         visibleLeadingSegments = secondaryVisibleLeadingSegments.ToList();
         lastSegment = secondaryLastSegment;
         showEllipsis = secondaryShowEllipsis;
+        
+        // Clear secondary state
         secondaryRootPrefix = "";
         secondaryPathSegments.Clear();
         secondaryVisibleLeadingSegments.Clear();
