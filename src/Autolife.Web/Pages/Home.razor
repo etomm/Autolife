@@ -1,0 +1,220 @@
+@page "/"
+@inject NavigationManager Navigation
+
+<PageTitle>Autolife - Your AI Life Assistant</PageTitle>
+
+<div class="welcome-container">
+    @if (isSystemEmpty)
+    {
+        <div class="chatbot-welcome">
+            <div class="chat-messages">
+                <div class="chat-message bot-message">
+                    <div class="message-avatar">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <h3>👋 Welcome to Autolife!</h3>
+                        <p>I'm your AI-powered life management assistant. I can help you organize your knowledge, manage documents, and track projects.</p>
+                    </div>
+                </div>
+
+                <div class="chat-message bot-message" style="animation-delay: 0.5s">
+                    <div class="message-avatar">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div class="message-content">
+                        <p>Let's get started! What would you like to do first?</p>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/knowledge")">
+                        <i class="bi bi-book"></i>
+                        <h4>Explore Knowledge</h4>
+                        <p>Build your personal knowledge base</p>
+                    </button>
+
+                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/documents")">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <h4>Manage Documents</h4>
+                        <p>Upload and organize your files</p>
+                    </button>
+
+                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/projects")">
+                        <i class="bi bi-kanban"></i>
+                        <h4>Start a Project</h4>
+                        <p>Track your ongoing work</p>
+                    </button>
+
+                    <button class="action-card" @onclick="() => Navigation.NavigateTo("/settings")">
+                        <i class="bi bi-gear"></i>
+                        <h4>Configure Settings</h4>
+                        <p>Set up AI models and preferences</p>
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="dashboard">
+            <h1>Dashboard</h1>
+            <div class="dashboard-cards">
+                <div class="card">
+                    <h3>Recent Activity</h3>
+                    <p>Your recent items will appear here</p>
+                </div>
+                <div class="card">
+                    <h3>Quick Stats</h3>
+                    <p>Knowledge entries: @knowledgeCount</p>
+                    <p>Documents: @documentsCount</p>
+                    <p>Projects: @projectsCount</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isSystemEmpty = true;
+    private int knowledgeCount = 0;
+    private int documentsCount = 0;
+    private int projectsCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: Check actual system state from database/storage
+        // For now, assuming empty system
+        isSystemEmpty = (knowledgeCount + documentsCount + projectsCount) == 0;
+    }
+}
+
+<style>
+    .welcome-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .chatbot-welcome {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .chat-messages {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .chat-message {
+        display: flex;
+        gap: 1rem;
+        animation: slideIn 0.5s ease-out forwards;
+        opacity: 0;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .message-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .message-content {
+        flex: 1;
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .message-content h3 {
+        margin: 0 0 0.5rem 0;
+        color: #2c3e50;
+    }
+
+    .message-content p {
+        margin: 0.5rem 0;
+        color: #555;
+        line-height: 1.6;
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+        animation: slideIn 0.5s ease-out 1s forwards;
+        opacity: 0;
+    }
+
+    .action-card {
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 2rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+
+    .action-card:hover {
+        border-color: #667eea;
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+    }
+
+    .action-card i {
+        font-size: 3rem;
+        color: #667eea;
+        margin-bottom: 1rem;
+    }
+
+    .action-card h4 {
+        margin: 0.5rem 0;
+        color: #2c3e50;
+    }
+
+    .action-card p {
+        margin: 0.5rem 0 0 0;
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+
+    .dashboard {
+        padding: 2rem;
+    }
+
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+</style>

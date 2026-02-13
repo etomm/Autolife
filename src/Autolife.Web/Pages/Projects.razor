@@ -1,0 +1,205 @@
+@page "/projects"
+
+<PageTitle>Projects - Autolife</PageTitle>
+
+<div class="projects-container">
+    <div class="page-header">
+        <h1>🚀 Projects</h1>
+        <button class="btn btn-primary" @onclick="CreateNewProject">
+            <i class="bi bi-plus-lg"></i> New Project
+        </button>
+    </div>
+
+    @if (projects.Any())
+    {
+        <div class="projects-grid">
+            @foreach (var project in projects)
+            {
+                <div class="project-card">
+                    <div class="project-header">
+                        <h3>@project.Name</h3>
+                        <span class="status-badge status-@project.Status.ToLower()">@project.Status</span>
+                    </div>
+                    <p>@project.Description</p>
+                    <div class="project-progress">
+                        <div class="progress">
+                            <div class="progress-bar" style="width: @(project.Progress)%"></div>
+                        </div>
+                        <span class="progress-text">@project.Progress% Complete</span>
+                    </div>
+                    <div class="project-footer">
+                        <span><i class="bi bi-calendar"></i> @project.DueDate.ToShortDateString()</span>
+                        <span><i class="bi bi-list-task"></i> @project.TasksCompleted/@project.TotalTasks tasks</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <i class="bi bi-kanban"></i>
+            <h3>No projects yet</h3>
+            <p>Start tracking your work by creating your first project.</p>
+            <button class="btn btn-primary" @onclick="CreateNewProject">Create First Project</button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Project> projects = new();
+
+    private class Project
+    {
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Status { get; set; } = "Active";
+        public int Progress { get; set; }
+        public DateTime DueDate { get; set; }
+        public int TasksCompleted { get; set; }
+        public int TotalTasks { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // TODO: Load actual projects from storage
+    }
+
+    private void CreateNewProject()
+    {
+        // TODO: Navigate to create project page
+    }
+}
+
+<style>
+    .projects-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .projects-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .project-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .project-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+
+    .project-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+
+    .project-header h3 {
+        margin: 0;
+        color: #2c3e50;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-completed {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .project-card > p {
+        color: #7f8c8d;
+        margin: 0 0 1rem 0;
+    }
+
+    .project-progress {
+        margin-bottom: 1rem;
+    }
+
+    .progress {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        font-size: 0.85rem;
+        color: #7f8c8d;
+    }
+
+    .project-footer {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+    }
+
+    .project-footer i {
+        margin-right: 0.25rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: #667eea;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: #7f8c8d;
+        margin-bottom: 2rem;
+    }
+</style>

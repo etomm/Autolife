@@ -1,0 +1,171 @@
+@page "/knowledge"
+
+<PageTitle>Knowledge - Autolife</PageTitle>
+
+<div class="knowledge-container">
+    <div class="page-header">
+        <h1>📚 Knowledge Base</h1>
+        <button class="btn btn-primary" @onclick="CreateNewEntry">
+            <i class="bi bi-plus-lg"></i> New Entry
+        </button>
+    </div>
+
+    <div class="search-bar">
+        <input type="text" class="form-control" placeholder="Search knowledge base..." @bind="searchQuery" @bind:event="oninput" />
+        <button class="btn btn-outline-primary" @onclick="Search">
+            <i class="bi bi-search"></i> Search
+        </button>
+    </div>
+
+    @if (knowledgeEntries.Any())
+    {
+        <div class="knowledge-grid">
+            @foreach (var entry in knowledgeEntries)
+            {
+                <div class="knowledge-card">
+                    <h3>@entry.Title</h3>
+                    <p>@entry.Summary</p>
+                    <div class="card-footer">
+                        <span class="badge">@entry.Category</span>
+                        <span class="date">@entry.LastModified.ToShortDateString()</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <i class="bi bi-book"></i>
+            <h3>No knowledge entries yet</h3>
+            <p>Start building your personal knowledge base by creating your first entry.</p>
+            <button class="btn btn-primary" @onclick="CreateNewEntry">Create First Entry</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string searchQuery = "";
+    private List<KnowledgeEntry> knowledgeEntries = new();
+
+    private class KnowledgeEntry
+    {
+        public string Title { get; set; } = "";
+        public string Summary { get; set; } = "";
+        public string Category { get; set; } = "";
+        public DateTime LastModified { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // TODO: Load actual knowledge entries from storage
+    }
+
+    private void Search()
+    {
+        // TODO: Implement search functionality
+    }
+
+    private void CreateNewEntry()
+    {
+        // TODO: Navigate to create entry page
+    }
+}
+
+<style>
+    .knowledge-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .search-bar input {
+        flex: 1;
+    }
+
+    .knowledge-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .knowledge-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .knowledge-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+
+    .knowledge-card h3 {
+        margin: 0 0 0.5rem 0;
+        color: #2c3e50;
+    }
+
+    .knowledge-card p {
+        color: #7f8c8d;
+        margin: 0 0 1rem 0;
+    }
+
+    .card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .badge {
+        background: #667eea;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+    }
+
+    .date {
+        color: #95a5a6;
+        font-size: 0.85rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: #667eea;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: #7f8c8d;
+        margin-bottom: 2rem;
+    }
+</style>

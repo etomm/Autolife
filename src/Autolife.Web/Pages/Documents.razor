@@ -1,0 +1,190 @@
+@page "/documents"
+
+<PageTitle>Documents - Autolife</PageTitle>
+
+<div class="documents-container">
+    <div class="page-header">
+        <h1>📄 Document Management</h1>
+        <button class="btn btn-primary" @onclick="UploadDocument">
+            <i class="bi bi-upload"></i> Upload Document
+        </button>
+    </div>
+
+    <div class="toolbar">
+        <input type="text" class="form-control" placeholder="Search documents..." @bind="searchQuery" />
+        <select class="form-select" @bind="selectedCategory">
+            <option value="">All Categories</option>
+            <option value="personal">Personal</option>
+            <option value="work">Work</option>
+            <option value="financial">Financial</option>
+            <option value="legal">Legal</option>
+        </select>
+    </div>
+
+    @if (documents.Any())
+    {
+        <div class="documents-list">
+            @foreach (var doc in documents)
+            {
+                <div class="document-item">
+                    <div class="doc-icon">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+                    <div class="doc-info">
+                        <h4>@doc.Name</h4>
+                        <p>@doc.Size | Modified @doc.ModifiedDate.ToShortDateString()</p>
+                    </div>
+                    <div class="doc-actions">
+                        <button class="btn btn-sm btn-outline-primary">View</button>
+                        <button class="btn btn-sm btn-outline-secondary">Download</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <i class="bi bi-file-earmark-text"></i>
+            <h3>No documents uploaded yet</h3>
+            <p>Start organizing your documents by uploading your first file.</p>
+            <button class="btn btn-primary" @onclick="UploadDocument">Upload First Document</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string searchQuery = "";
+    private string selectedCategory = "";
+    private List<Document> documents = new();
+
+    private class Document
+    {
+        public string Name { get; set; } = "";
+        public string Size { get; set; } = "";
+        public DateTime ModifiedDate { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // TODO: Load actual documents from storage
+    }
+
+    private void UploadDocument()
+    {
+        // TODO: Implement document upload
+    }
+}
+
+<style>
+    .documents-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .toolbar input {
+        flex: 2;
+    }
+
+    .toolbar select {
+        flex: 1;
+        max-width: 200px;
+    }
+
+    .documents-list {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .document-item {
+        display: flex;
+        align-items: center;
+        padding: 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        transition: background 0.2s;
+    }
+
+    .document-item:hover {
+        background: #f8f9fa;
+    }
+
+    .document-item:last-child {
+        border-bottom: none;
+    }
+
+    .doc-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e9ecef;
+        border-radius: 8px;
+        margin-right: 1rem;
+    }
+
+    .doc-icon i {
+        font-size: 1.5rem;
+        color: #667eea;
+    }
+
+    .doc-info {
+        flex: 1;
+    }
+
+    .doc-info h4 {
+        margin: 0;
+        color: #2c3e50;
+    }
+
+    .doc-info p {
+        margin: 0.25rem 0 0 0;
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+
+    .doc-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: #667eea;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state p {
+        color: #7f8c8d;
+        margin-bottom: 2rem;
+    }
+</style>
