@@ -23,18 +23,29 @@
                     <div class="breadcrumb-nav">
                         @if (!string.IsNullOrEmpty(pathPrefix))
                         {
-                            <button type="button" class="breadcrumb-prefix" @onclick="ShowRoots">
-                                @pathPrefix
+                            <button type="button" class="breadcrumb-prefix" @onclick="ShowRoots" title="Change root">
+                                <i class="bi bi-chevron-left"></i>
+                                <span>@pathPrefix</span>
                             </button>
                             <span class="breadcrumb-separator">/</span>
                         }
-                        @foreach (var (segment, path) in GetPathSegments())
+                        @if (pathSegments.Count > 0)
                         {
-                            var capturedPath = path;
-                            <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                @segment
-                            </button>
-                            <span class="breadcrumb-separator">/</span>
+                            @if (showEllipsis)
+                            {
+                                <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneLevel" title="Go up one level">
+                                    <span>..</span>
+                                </button>
+                                <span class="breadcrumb-separator">/</span>
+                            }
+                            @foreach (var (segment, path) in visibleSegments)
+                            {
+                                var capturedPath = path;
+                                <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
+                                    @segment
+                                </button>
+                                <span class="breadcrumb-separator">/</span>
+                            }
                         }
                     </div>
                     @if (canCreateFolder)
@@ -108,14 +119,6 @@
                 }
                 else
                 {
-                    @if (!string.IsNullOrEmpty(parentPath))
-                    {
-                        <div class="folder-item" @onclick="async () => await NavigateToPath(parentPath)">
-                            <i class="bi bi-arrow-up"></i>
-                            <span class="folder-name">..</span>
-                        </div>
-                    }
-
                     @foreach (var dir in directories)
                     {
                         var capturedDir = dir;
@@ -126,6 +129,10 @@
                             @if (!capturedDir.IsAccessible)
                             {
                                 <span class="access-denied"><i class="bi bi-lock"></i> Access Denied</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-chevron-right"></i>
                             }
                         </div>
                     }
@@ -208,6 +215,12 @@
     private string createErrorMessage = "";
     private bool isWindows = false;
 
+    // Path truncation support
+    private List<(string segment, string path)> pathSegments = new();
+    private List<(string segment, string path)> visibleSegments = new();
+    private bool showEllipsis = false;
+    private const int MaxBreadcrumbWidth = 500; // Approximate max pixels for breadcrumb
+
     protected override async Task OnInitializedAsync()
     {
         // Detect OS
@@ -229,6 +242,12 @@
         {
             var response = await Http.GetFromJsonAsync<List<RootInfo>>("/api/filesystem/roots");
             roots = response ?? new();
+            
+            // Filter Network option for non-Windows
+            if (!isWindows)
+            {
+                roots = roots.Where(r => r.Type != "Network").ToList();
+            }
         }
         catch (Exception ex)
         {
@@ -243,6 +262,21 @@
 
     private async Task SelectRoot(string path)
     {
+        // Special handling for Network root
+        if (path == "")
+        {
+            // Network locations - try to browse UNC root
+            try
+            {
+                await NavigateToPath("\\\\");
+            }
+            catch
+            {
+                SetError("Network locations not accessible", "Cannot browse network. Ensure network access is enabled and you have permissions.");
+            }
+            return;
+        }
+        
         await NavigateToPath(path);
     }
 
@@ -254,6 +288,9 @@
         pathPrefix = "";
         directories.Clear();
         canCreateFolder = false;
+        pathSegments.Clear();
+        visibleSegments.Clear();
+        showEllipsis = false;
         ClearError();
         StateHasChanged();
     }
@@ -276,8 +313,9 @@
                 selectedPath = currentPath;
                 canCreateFolder = response.CanCreateFolder;
                 
-                // Set prefix
+                // Set prefix and calculate segments
                 UpdatePathPrefix(currentPath);
+                CalculatePathSegments();
             }
         }
         catch (Exception ex)
@@ -320,16 +358,13 @@
         }
     }
 
-    private async Task SelectDirectory(string path)
+    private void CalculatePathSegments()
     {
-        selectedPath = path;
-        await NavigateToPath(path);
-    }
+        pathSegments.Clear();
+        visibleSegments.Clear();
+        showEllipsis = false;
 
-    private List<(string segment, string path)> GetPathSegments()
-    {
-        var segments = new List<(string, string)>();
-        if (string.IsNullOrEmpty(currentPath)) return segments;
+        if (string.IsNullOrEmpty(currentPath)) return;
 
         var path = currentPath;
         
@@ -350,7 +385,11 @@
             path = path.Substring(1);
         }
 
-        if (string.IsNullOrEmpty(path)) return segments;
+        if (string.IsNullOrEmpty(path))
+        {
+            visibleSegments = pathSegments;
+            return;
+        }
 
         var parts = path.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
         var accumulated = currentPath.Substring(0, currentPath.Length - path.Length);
@@ -358,10 +397,40 @@
         foreach (var part in parts)
         {
             accumulated += part + Path.DirectorySeparatorChar;
-            segments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
+            pathSegments.Add((part, accumulated.TrimEnd(Path.DirectorySeparatorChar)));
         }
 
-        return segments;
+        // Calculate visible segments - show ellipsis if path is too long
+        // Estimate: prefix ~100px, separator ~10px, segment ~80px average, new folder button ~50px
+        // We want to keep last 3-4 segments visible
+        const int maxVisibleSegments = 4;
+        
+        if (pathSegments.Count > maxVisibleSegments)
+        {
+            showEllipsis = true;
+            visibleSegments = pathSegments.Skip(pathSegments.Count - maxVisibleSegments).ToList();
+        }
+        else
+        {
+            showEllipsis = false;
+            visibleSegments = pathSegments;
+        }
+    }
+
+    private async Task NavigateUpOneLevel()
+    {
+        // When clicking ellipsis, go to the first hidden segment (one level above visible segments)
+        if (showEllipsis && pathSegments.Count > visibleSegments.Count)
+        {
+            var targetSegment = pathSegments[pathSegments.Count - visibleSegments.Count - 1];
+            await NavigateToPath(targetSegment.path);
+        }
+    }
+
+    private async Task SelectDirectory(string path)
+    {
+        selectedPath = path;
+        await NavigateToPath(path);
     }
 
     private void ShowCreateFolderDialog()
@@ -492,9 +561,9 @@
         flex-direction: column;
         height: 600px;
         max-height: 80vh;
-        background: white;
+        background: var(--bg-secondary);
         border-radius: 12px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 24px var(--shadow);
         position: relative;
         z-index: 1051;
         pointer-events: auto;
@@ -505,12 +574,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .browser-header h5 {
         margin: 0;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .btn-close {
@@ -518,13 +587,13 @@
         border: none;
         font-size: 1.5rem;
         cursor: pointer;
-        color: #6c757d;
+        color: var(--text-secondary);
         padding: 0.25rem 0.5rem;
         line-height: 1;
     }
 
     .btn-close:hover {
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .btn-close::before {
@@ -547,13 +616,13 @@
 
     .path-placeholder {
         padding: 1rem;
-        background: #f8f9fa;
+        background: var(--bg-tertiary);
         border-radius: 8px;
-        border: 2px dashed #dee2e6;
+        border: 2px dashed var(--border-color);
         display: flex;
         align-items: center;
         gap: 0.75rem;
-        color: #6c757d;
+        color: var(--text-secondary);
         font-style: italic;
     }
 
@@ -563,9 +632,9 @@
 
     .current-path {
         padding: 0.75rem;
-        background: #f8f9fa;
+        background: var(--bg-tertiary);
         border-radius: 8px;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--border-color);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -576,13 +645,14 @@
         flex: 1;
         display: flex;
         align-items: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow: hidden;
         gap: 0.25rem;
         min-height: 32px;
     }
 
     .breadcrumb-prefix {
-        background: #667eea;
+        background: var(--accent-color);
         color: white;
         border: none;
         cursor: pointer;
@@ -590,28 +660,60 @@
         border-radius: 6px;
         transition: background 0.2s;
         font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
     }
 
     .breadcrumb-prefix:hover {
-        background: #5568d3;
+        background: var(--accent-hover);
+    }
+
+    .breadcrumb-prefix i {
+        font-size: 0.9rem;
+    }
+
+    .breadcrumb-ellipsis {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--accent-color);
+        cursor: pointer;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        transition: all 0.2s;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    .breadcrumb-ellipsis:hover {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
     }
 
     .breadcrumb-item {
         background: none;
         border: none;
-        color: #667eea;
+        color: var(--accent-color);
         cursor: pointer;
         padding: 0.25rem 0.5rem;
         border-radius: 4px;
         transition: background 0.2s;
+        white-space: nowrap;
+        flex-shrink: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .breadcrumb-item:hover {
-        background: #e9ecef;
+        background: var(--bg-secondary);
     }
 
     .breadcrumb-separator {
-        color: #adb5bd;
+        color: var(--text-tertiary);
+        flex-shrink: 0;
     }
 
     .btn-new-folder {
@@ -626,6 +728,7 @@
         gap: 0.5rem;
         transition: background 0.2s;
         white-space: nowrap;
+        flex-shrink: 0;
     }
 
     .btn-new-folder:hover {
@@ -693,8 +796,9 @@
     .folder-list {
         flex: 1;
         overflow-y: auto;
-        border: 1px solid #dee2e6;
+        border: 1px solid var(--border-color);
         border-radius: 8px;
+        background: var(--bg-secondary);
     }
 
     .folder-item {
@@ -704,16 +808,16 @@
         padding: 0.75rem 1rem;
         cursor: pointer;
         transition: background 0.2s;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .folder-item:hover:not(.disabled) {
-        background: #f8f9fa;
+        background: var(--bg-tertiary);
     }
 
     .folder-item.selected {
         background: rgba(102, 126, 234, 0.1);
-        border-left: 3px solid #667eea;
+        border-left: 3px solid var(--accent-color);
     }
 
     .folder-item.disabled {
@@ -727,13 +831,19 @@
 
     .folder-item i {
         font-size: 1.25rem;
-        color: #667eea;
+        color: var(--accent-color);
         min-width: 24px;
+    }
+
+    .folder-item .bi-chevron-right {
+        margin-left: auto;
+        font-size: 1rem;
+        color: var(--text-tertiary);
     }
 
     .folder-name {
         flex: 1;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .badge-network {
@@ -750,18 +860,19 @@
         display: flex;
         align-items: center;
         gap: 0.25rem;
+        margin-left: auto;
     }
 
     .empty-folder {
         text-align: center;
         padding: 3rem;
-        color: #6c757d;
+        color: var(--text-secondary);
     }
 
     .empty-folder i {
         font-size: 3rem;
         margin-bottom: 1rem;
-        color: #adb5bd;
+        color: var(--text-tertiary);
     }
 
     .loading {
@@ -770,20 +881,20 @@
         align-items: center;
         justify-content: center;
         padding: 2rem;
-        color: #6c757d;
+        color: var(--text-secondary);
         gap: 1rem;
     }
 
     .spinner {
-        border: 3px solid #f3f3f3;
-        border-top: 3px solid #667eea;
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--accent-color);
         border-radius: 50%;
         width: 40px;
         height: 40px;
         animation: spin 1s linear infinite;
     }
 
-    @@keyframes spin {
+    @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
@@ -793,12 +904,12 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-top: 1px solid #dee2e6;
+        border-top: 1px solid var(--border-color);
     }
 
     .selected-path-display {
         flex: 1;
-        color: #6c757d;
+        color: var(--text-secondary);
         font-size: 0.9rem;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -827,17 +938,17 @@
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 1060;
-        background: white;
+        background: var(--bg-secondary);
         padding: 1.5rem;
         border-radius: 12px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 24px var(--shadow);
         min-width: 300px;
         pointer-events: auto;
     }
 
     .create-folder-dialog h6 {
         margin-bottom: 1rem;
-        color: #2c3e50;
+        color: var(--text-primary);
     }
 
     .dialog-buttons {
