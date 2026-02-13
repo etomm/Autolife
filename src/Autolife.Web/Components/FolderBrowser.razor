@@ -82,7 +82,7 @@
                                         <button type="button" 
                                                 class="btn-error-info"
                                                 @onmouseenter="ShowErrorDetails"
-                                                @onmouseleave="HideErrorDetails">
+                                                @onmouseleave="StartHideErrorTimer">
                                             <i class="bi bi-question-circle"></i>
                                         </button>
                                     </div>
@@ -104,7 +104,7 @@
         @if (showErrorPopup && createError)
         {
             <div class="error-details-popup @(showFullStackTrace ? "expanded" : "")"
-                 @onmouseenter="() => showErrorPopup = true"
+                 @onmouseenter="KeepErrorDetailsVisible"
                  @onmouseleave="HideErrorDetails">
                 <div class="error-popup-header">
                     <strong>Error Details</strong>
@@ -262,6 +262,7 @@
     private bool showErrorPopup = false;
     private bool showFullStackTrace = false;
     private ElementReference createInputRef;
+    private System.Threading.Timer? hideErrorTimer;
 
     // Path truncation support
     private List<(string segment, string path)> pathSegments = new();
@@ -567,21 +568,47 @@
         createStackTrace = "";
         showErrorPopup = false;
         showFullStackTrace = false;
+        hideErrorTimer?.Dispose();
+        hideErrorTimer = null;
     }
 
     private void ShowErrorDetails()
     {
         if (createError)
         {
+            hideErrorTimer?.Dispose();
+            hideErrorTimer = null;
             showErrorPopup = true;
             StateHasChanged();
         }
+    }
+
+    private void KeepErrorDetailsVisible()
+    {
+        hideErrorTimer?.Dispose();
+        hideErrorTimer = null;
+    }
+
+    private void StartHideErrorTimer()
+    {
+        // Small delay to allow mouse to move to popup
+        hideErrorTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                showErrorPopup = false;
+                showFullStackTrace = false;
+                StateHasChanged();
+            });
+        }, null, 150, System.Threading.Timeout.Infinite);
     }
 
     private void HideErrorDetails()
     {
         showErrorPopup = false;
         showFullStackTrace = false;
+        hideErrorTimer?.Dispose();
+        hideErrorTimer = null;
         StateHasChanged();
     }
 
@@ -623,6 +650,11 @@
     private async Task HandleCancel()
     {
         await OnCancelled.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        hideErrorTimer?.Dispose();
     }
 
     private class RootInfo
@@ -710,8 +742,9 @@
         position: relative;
     }
 
+    /* Match padding and height between placeholder and current-path */
     .path-placeholder {
-        padding: 1rem;
+        padding: 0.75rem;
         background: var(--bg-tertiary);
         border-radius: 8px;
         border: 2px dashed var(--border-color);
@@ -720,6 +753,7 @@
         gap: 0.75rem;
         color: var(--text-secondary);
         font-style: italic;
+        min-height: 60px;
     }
 
     .path-placeholder i {
@@ -736,6 +770,7 @@
         justify-content: space-between;
         gap: 0.5rem;
         position: relative;
+        min-height: 60px;
     }
 
     .breadcrumb-nav {
@@ -813,6 +848,7 @@
         flex-shrink: 0;
     }
 
+    /* Match button heights */
     .btn-new-folder {
         background: #28a745;
         color: white;
@@ -826,6 +862,7 @@
         transition: background 0.2s;
         white-space: nowrap;
         flex-shrink: 0;
+        height: 38px; /* Explicit height */
     }
 
     .btn-new-folder:hover {
@@ -850,7 +887,7 @@
     }
 
     .inline-create-input {
-        padding: 0.375rem 0.75rem;
+        padding: 0.5rem 0.75rem;
         border: 1px solid var(--border-color);
         border-radius: 6px;
         background: var(--input-bg);
@@ -858,6 +895,7 @@
         font-size: 0.9rem;
         width: 150px;
         transition: border-color 0.2s;
+        height: 38px; /* Match button height */
     }
 
     .inline-create-container.error .inline-create-input {
@@ -874,12 +912,13 @@
         background: transparent;
         border: 1px solid var(--border-color);
         color: var(--text-primary);
-        padding: 0.375rem 0.5rem;
+        padding: 0.5rem 0.75rem;
         border-radius: 4px;
         cursor: pointer;
         display: flex;
         align-items: center;
         transition: all 0.2s;
+        height: 38px; /* Match button height */
     }
 
     .btn-inline-create:hover:not(:disabled) {
@@ -965,7 +1004,7 @@
         font-size: 0.75rem;
     }
 
-    /* Error details popup */
+    /* Error details popup - positioned near question mark */
     .error-details-popup {
         position: fixed;
         top: 50%;
@@ -982,6 +1021,7 @@
         max-height: 400px;
         overflow-y: auto;
         animation: popupAppear 0.2s ease;
+        pointer-events: auto; /* Ensure popup can receive mouse events */
     }
 
     .error-details-popup.expanded {
