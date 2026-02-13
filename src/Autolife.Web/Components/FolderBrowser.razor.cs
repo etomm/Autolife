@@ -41,6 +41,7 @@ public partial class FolderBrowser : IDisposable
     private ElementReference createInputRef;
     private System.Threading.Timer? hideErrorTimer;
     private bool _disposed = false;
+    private DotNetObjectReference<FolderBrowser>? dotNetRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -50,6 +51,15 @@ public partial class FolderBrowser : IDisposable
         if (!string.IsNullOrEmpty(InitialPath) && System.IO.Directory.Exists(InitialPath))
         {
             await NavigateToPath(InitialPath);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("breadcrumbManager.init", dotNetRef);
         }
     }
 
@@ -130,7 +140,8 @@ public partial class FolderBrowser : IDisposable
         }
     }
 
-    private async Task NavigateToPath(string path)
+    [JSInvokable]
+    public async Task NavigateToPath(string path)
     {
         if (_disposed) return;
 
@@ -174,6 +185,17 @@ public partial class FolderBrowser : IDisposable
             {
                 StateHasChanged();
             }
+        }
+    }
+
+    [JSInvokable]
+    public async Task NavigateUpOneLevel()
+    {
+        if (_disposed) return;
+
+        if (!string.IsNullOrEmpty(parentPath))
+        {
+            await NavigateToPath(parentPath);
         }
     }
 
@@ -496,6 +518,7 @@ public partial class FolderBrowser : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        dotNetRef?.Dispose();
         hideErrorTimer?.Dispose();
         hideErrorTimer = null;
     }

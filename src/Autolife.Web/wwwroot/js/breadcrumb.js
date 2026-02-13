@@ -119,7 +119,7 @@ window.breadcrumbManager = {
         });
         
         // Calculate how much to remove (overflow + ellipsis width + buffer)
-        const ellipsisWidth = 50; // Approximate width of "..." button
+        const ellipsisWidth = 50; // Approximate width of ".." button
         const buffer = 20; // Safety margin
         const targetRemoval = overflow + ellipsisWidth + buffer;
         console.log(`[BREADCRUMB] Target removal: ${targetRemoval}px`);
@@ -165,10 +165,10 @@ window.breadcrumbManager = {
             html += `</button>`;
         }
         
-        // Ellipsis
+        // Ellipsis (changed from ... to ..)
         html += `<span class="breadcrumb-separator">/</span>`;
         html += `<button type="button" class="breadcrumb-ellipsis" data-navigate-up="true">`;
-        html += `<span>...</span>`;
+        html += `<span>..</span>`;
         html += `</button>`;
         
         // Last segment (current)
