@@ -10,6 +10,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
+// Add Controllers for API endpoints
+builder.Services.AddControllers();
+
+// Configure HttpClient for Blazor Server
+builder.Services.AddScoped(sp =>
+{
+    var navigationManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+    return new HttpClient
+    {
+        BaseAddress = new Uri(navigationManager.BaseUri)
+    };
+});
+
 // Register repositories (in-memory for now)
 builder.Services.AddSingleton<IKnowledgeRepository, InMemoryKnowledgeRepository>();
 builder.Services.AddSingleton<IDocumentRepository, InMemoryDocumentRepository>();
@@ -39,6 +52,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+
+// Map API controllers
+app.MapControllers();
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
