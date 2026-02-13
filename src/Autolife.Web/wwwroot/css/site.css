@@ -1,100 +1,96 @@
 :root {
-    --primary-color: #5C87B2;
-    --secondary-color: #4A6C8E;
-    --accent-color: #007EFF;
-    --background-color: #f8f9fa;
-    --text-color: #333;
-    --border-color: #dee2e6;
+    /* Light Theme (Default) */
+    --bg-primary: #f5f7fa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f8f9fa;
+    --text-primary: #2c3e50;
+    --text-secondary: #7f8c8d;
+    --text-tertiary: #95a5a6;
+    --border-color: #e9ecef;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --accent-color: #667eea;
+    --accent-hover: #5568d3;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+[data-theme="dark"] {
+    --bg-primary: #1a202c;
+    --bg-secondary: #2d3748;
+    --bg-tertiary: #374151;
+    --text-primary: #f7fafc;
+    --text-secondary: #cbd5e0;
+    --text-tertiary: #a0aec0;
+    --border-color: #4a5568;
+    --shadow: rgba(0, 0, 0, 0.3);
+    --accent-color: #667eea;
+    --accent-hover: #7c8ff0;
 }
 
-html, body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    height: 100%;
-    color: var(--text-color);
-    background-color: var(--background-color);
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-a {
-    color: var(--accent-color);
-    text-decoration: none;
+.settings-section,
+.knowledge-card,
+.document-item,
+.project-card,
+.empty-state,
+.modal-content,
+.card {
+    background-color: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
 }
 
-a:hover {
-    text-decoration: underline;
+.settings-section h2,
+.knowledge-card h3,
+.project-card h3,
+.page-header h1 {
+    color: var(--text-primary) !important;
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
+.settings-section .section-description,
+.knowledge-card p,
+.project-card p,
+.empty-state p {
+    color: var(--text-secondary) !important;
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+.form-control,
+.form-select {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
 }
 
-.invalid {
-    outline: 1px solid red;
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
 }
 
-.validation-message {
-    color: red;
+.provider-card,
+.documents-list {
+    background-color: var(--bg-tertiary) !important;
+    border-color: var(--border-color) !important;
 }
 
-#blazor-error-ui {
-    background: lightyellow;
-    bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
-    display: none;
-    left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
-    position: fixed;
-    width: 100%;
-    z-index: 1000;
+.provider-card .provider-content {
+    background-color: var(--bg-secondary) !important;
 }
 
-#blazor-error-ui .dismiss {
-    cursor: pointer;
-    position: absolute;
-    right: 0.75rem;
-    top: 0.5rem;
+.drag-handle {
+    background-color: var(--border-color) !important;
 }
 
-.loading-progress {
-    position: relative;
-    display: block;
-    width: 8rem;
-    height: 8rem;
-    margin: 20vh auto 1rem auto;
+.meta-item,
+.stat-item,
+.date {
+    color: var(--text-tertiary) !important;
 }
 
-.loading-progress circle {
-    fill: none;
-    stroke: var(--primary-color);
-    stroke-width: 0.6rem;
-    transform-origin: 50% 50%;
-    transform: rotate(-90deg);
-}
-
-.loading-progress circle:last-child {
-    stroke: var(--accent-color);
-    stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
-    transition: stroke-dasharray 0.05s ease-in-out;
-}
-
-.loading-progress-text {
-    position: absolute;
-    text-align: center;
-    font-weight: bold;
-    inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
-}
-
-.loading-progress-text:after {
-    content: var(--blazor-load-percentage-text, "Loading");
+.modal-backdrop {
+    background: rgba(0, 0, 0, 0.6);
 }

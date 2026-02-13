@@ -1,6 +1,11 @@
 @inherits LayoutComponentBase
+@using Autolife.Core.Interfaces
+@using Autolife.Core.Models
+@inject ISettingsManager SettingsManager
+@inject IJSRuntime JS
+@implements IDisposable
 
-<div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")">
+<div class="app-container @(sidebarCollapsed ? "sidebar-collapsed" : "")" data-theme="@currentTheme">
     <div class="sidebar">
         <div class="sidebar-header">
             <button class="hamburger-btn" @onclick="ToggleSidebar">
@@ -64,10 +69,63 @@
 
 @code {
     private bool sidebarCollapsed = false;
+    private string currentTheme = "light";
+
+    protected override async Task OnInitializedAsync()
+    {
+        SettingsManager.OnSettingsChanged += HandleSettingsChanged;
+        await UpdateTheme();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await UpdateTheme();
+        }
+    }
 
     private void ToggleSidebar()
     {
         sidebarCollapsed = !sidebarCollapsed;
+    }
+
+    private async void HandleSettingsChanged()
+    {
+        await UpdateTheme();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UpdateTheme()
+    {
+        var settings = SettingsManager.GetUserSettings();
+        
+        switch (settings.Theme)
+        {
+            case Theme.Dark:
+                currentTheme = "dark";
+                break;
+            case Theme.Light:
+                currentTheme = "light";
+                break;
+            case Theme.Auto:
+                try
+                {
+                    // Detect system preference
+                    var prefersDark = await JS.InvokeAsync<bool>("matchMedia", "(prefers-color-scheme: dark)");
+                    currentTheme = prefersDark ? "dark" : "light";
+                }
+                catch
+                {
+                    currentTheme = "light";
+                }
+                break;
+        }
+    }
+
+    public void Dispose()
+    {
+        SettingsManager.OnSettingsChanged -= HandleSettingsChanged;
     }
 }
 
@@ -81,7 +139,7 @@
     .app-container {
         display: flex;
         min-height: 100vh;
-        background: #f5f7fa;
+        transition: background-color 0.3s ease;
     }
 
     .sidebar {
