@@ -1,9 +1,7 @@
-using Autolife.AI.Agents;
-using Autolife.AI.Interfaces;
-using Autolife.AI.Providers;
+using Autolife.AI.Services;
 using Autolife.Core.Interfaces;
-using Autolife.Storage;
-using Autolife.Web.Services;
+using Autolife.Core.Services;
+using Autolife.Storage.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,20 +9,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-// Configure storage path
-var storagePath = builder.Configuration.GetValue<string>("StoragePath") ?? 
-    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".autolife", "content");
+// Register repositories (in-memory for now)
+builder.Services.AddSingleton<IKnowledgeRepository, InMemoryKnowledgeRepository>();
+builder.Services.AddSingleton<IDocumentRepository, InMemoryDocumentRepository>();
+builder.Services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
 
-// Register services
-builder.Services.AddSingleton(new GitStorageService(storagePath));
-builder.Services.AddSingleton<IAIProvider, MockAIProvider>();
-builder.Services.AddSingleton<IKnowledgeService, KnowledgeService>();
-builder.Services.AddSingleton<IProjectService, ProjectService>();
-builder.Services.AddSingleton<IDocumentService, DocumentService>();
+// Register AI service
+builder.Services.AddSingleton<IAiService, MockAiService>();
 
-// Register AI agents
-builder.Services.AddTransient<KnowledgeOrganizationAgent>();
-builder.Services.AddTransient<DocumentSummaryAgent>();
+// Register business services
+builder.Services.AddScoped<IKnowledgeService, KnowledgeService>();
+builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
 
 var app = builder.Build();
 

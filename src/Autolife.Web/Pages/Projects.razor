@@ -1,16 +1,27 @@
 @page "/projects"
+@using Autolife.Core.Interfaces
+@using Autolife.Core.Models
+@inject IProjectService ProjectService
 
 <PageTitle>Projects - Autolife</PageTitle>
 
 <div class="projects-container">
     <div class="page-header">
         <h1>🚀 Projects</h1>
-        <button class="btn btn-primary" @onclick="CreateNewProject">
+        <button class="btn btn-primary" @onclick="() => showCreateDialog = true">
             <i class="bi bi-plus-lg"></i> New Project
         </button>
     </div>
 
-    @if (projects.Any())
+    @if (isLoading)
+    {
+        <div class="text-center p-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (projects.Any())
     {
         <div class="projects-grid">
             @foreach (var project in projects)
@@ -18,7 +29,7 @@
                 <div class="project-card">
                     <div class="project-header">
                         <h3>@project.Name</h3>
-                        <span class="status-badge status-@project.Status.ToLower()">@project.Status</span>
+                        <span class="status-badge status-@project.Status.ToString().ToLower()">@project.Status</span>
                     </div>
                     <p>@project.Description</p>
                     <div class="project-progress">
@@ -28,8 +39,11 @@
                         <span class="progress-text">@project.Progress% Complete</span>
                     </div>
                     <div class="project-footer">
-                        <span><i class="bi bi-calendar"></i> @project.DueDate.ToShortDateString()</span>
-                        <span><i class="bi bi-list-task"></i> @project.TasksCompleted/@project.TotalTasks tasks</span>
+                        @if (project.DueDate.HasValue)
+                        {
+                            <span><i class="bi bi-calendar"></i> @project.DueDate.Value.ToShortDateString()</span>
+                        }
+                        <span><i class="bi bi-list-task"></i> @project.Tasks.Count(t => t.IsCompleted)/@project.Tasks.Count tasks</span>
                     </div>
                 </div>
             }
@@ -41,33 +55,89 @@
             <i class="bi bi-kanban"></i>
             <h3>No projects yet</h3>
             <p>Start tracking your work by creating your first project.</p>
-            <button class="btn btn-primary" @onclick="CreateNewProject">Create First Project</button>
+            <button class="btn btn-primary" @onclick="() => showCreateDialog = true">Create First Project</button>
         </div>
     }
 </div>
 
+@if (showCreateDialog)
+{
+    <div class="modal-backdrop" @onclick="() => showCreateDialog = false"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5>Create Project</h5>
+                <button class="btn-close" @onclick="() => showCreateDialog = false"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Project Name *</label>
+                    <input type="text" class="form-control" @bind="newProject.Name" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description *</label>
+                    <textarea class="form-control" rows="4" @bind="newProject.Description" placeholder="Describe your project..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" class="form-control" @bind="dueDate" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="() => showCreateDialog = false">Cancel</button>
+                <button class="btn btn-primary" @onclick="CreateProject" disabled="@(string.IsNullOrWhiteSpace(newProject.Name) || string.IsNullOrWhiteSpace(newProject.Description))">Create & Generate AI Plan</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<Project> projects = new();
+    private bool isLoading = true;
+    private bool showCreateDialog = false;
+    private Project newProject = new();
+    private string dueDate = "";
 
-    private class Project
+    protected override async Task OnInitializedAsync()
     {
-        public string Name { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string Status { get; set; } = "Active";
-        public int Progress { get; set; }
-        public DateTime DueDate { get; set; }
-        public int TasksCompleted { get; set; }
-        public int TotalTasks { get; set; }
+        await LoadProjects();
     }
 
-    protected override void OnInitialized()
+    private async Task LoadProjects()
     {
-        // TODO: Load actual projects from storage
+        isLoading = true;
+        try
+        {
+            projects = (await ProjectService.GetAllAsync()).ToList();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
-    private void CreateNewProject()
+    private async Task CreateProject()
     {
-        // TODO: Navigate to create project page
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(dueDate) && DateTime.TryParse(dueDate, out var parsedDate))
+            {
+                newProject.DueDate = parsedDate;
+            }
+
+            newProject.StartDate = DateTime.UtcNow;
+            newProject.Status = ProjectStatus.Active;
+
+            await ProjectService.CreateAsync(newProject);
+            showCreateDialog = false;
+            newProject = new Project();
+            dueDate = "";
+            await LoadProjects();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating project: {ex.Message}");
+        }
     }
 }
 
@@ -121,6 +191,7 @@
         border-radius: 12px;
         font-size: 0.85rem;
         font-weight: 500;
+        white-space: nowrap;
     }
 
     .status-active {
@@ -128,7 +199,7 @@
         color: #155724;
     }
 
-    .status-pending {
+    .status-planning {
         background: #fff3cd;
         color: #856404;
     }
@@ -138,9 +209,18 @@
         color: #004085;
     }
 
+    .status-onhold {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
     .project-card > p {
         color: #7f8c8d;
         margin: 0 0 1rem 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
     .project-progress {
@@ -201,5 +281,51 @@
     .empty-state p {
         color: #7f8c8d;
         margin-bottom: 2rem;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 1040;
+    }
+
+    .modal-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1050;
+        width: 90%;
+        max-width: 600px;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
     }
 </style>
