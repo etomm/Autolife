@@ -16,135 +16,27 @@
             }
             else
             {
-                <div class="current-path @(isCalculating ? "calculating" : "")">
-                    <!-- Back button - OUTSIDE breadcrumb -->
+                <div class="current-path">
+                    <!-- Back button -->
                     <button type="button" class="breadcrumb-back" @onclick="ShowRoots" title="Back to root selection">
                         <i class="bi bi-chevron-left"></i>
                     </button>
 
-                    <!-- Primary breadcrumb container -->
-                    <div class="breadcrumb-nav @(primaryVisible ? "" : "hidden") @(isCalculating && primaryVisible ? "blocked" : "")" @ref="breadcrumbNavRef">
+                    <!-- Primary breadcrumb container (managed by JS) -->
+                    <div class="breadcrumb-nav" data-buffer="primary" style="visibility: visible; position: relative;">
                         <div class="breadcrumb-content">
-                            @if (!string.IsNullOrEmpty(primaryRootPrefix))
-                            {
-                                <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
-                                    @primaryRootPrefix
-                                </button>
-                            }
-                            
-                            @if (primaryPathSegments.Count > 0)
-                            {
-                                @if (primaryShowEllipsis)
-                                {
-                                    @foreach (var (segment, path) in primaryVisibleLeadingSegments)
-                                    {
-                                        var capturedPath = path;
-                                        <span class="breadcrumb-separator">/</span>
-                                        <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                            @segment
-                                        </button>
-                                    }
-                                    <span class="breadcrumb-separator">/</span>
-                                    <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
-                                        <span>..</span>
-                                    </button>
-                                    @if (!string.IsNullOrEmpty(primaryLastSegment.segment))
-                                    {
-                                        var capturedPath = primaryLastSegment.path;
-                                        <span class="breadcrumb-separator">/</span>
-                                        <button type="button" class="breadcrumb-item breadcrumb-current">
-                                            @primaryLastSegment.segment
-                                        </button>
-                                    }
-                                }
-                                else
-                                {
-                                    @for (int i = 0; i < primaryPathSegments.Count; i++)
-                                    {
-                                        var segment = primaryPathSegments[i];
-                                        var capturedPath = segment.path;
-                                        var isLast = (i == primaryPathSegments.Count - 1);
-                                        <span class="breadcrumb-separator">/</span>
-                                        @if (isLast)
-                                        {
-                                            <button type="button" class="breadcrumb-item breadcrumb-current">
-                                                @segment.segment
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <button type="button" class="breadcrumb-item" @onclick="async () => await NavigateToPath(capturedPath)">
-                                                @segment.segment
-                                            </button>
-                                        }
-                                    }
-                                }
-                            }
+                            <!-- JavaScript will populate this -->
                         </div>
                     </div>
 
-                    <!-- Secondary breadcrumb container -->
-                    <div class="breadcrumb-nav @(primaryVisible ? "hidden" : "") @(isCalculating && !primaryVisible ? "blocked" : "")" @ref="breadcrumbNavSecondaryRef">
-                        <div class="breadcrumb-content" @ref="breadcrumbContentSecondaryRef">
-                            @if (!string.IsNullOrEmpty(secondaryRootPrefix))
-                            {
-                                <button type="button" class="breadcrumb-item" @onclick="NavigateToRoot" title="Go to root">
-                                    @secondaryRootPrefix
-                                </button>
-                            }
-                            
-                            @if (secondaryPathSegments.Count > 0)
-                            {
-                                @if (secondaryShowEllipsis)
-                                {
-                                    @for (int idx = 0; idx < secondaryVisibleLeadingSegments.Count; idx++)
-                                    {
-                                        var (segment, path) = secondaryVisibleLeadingSegments[idx];
-                                        var capturedPath = path;
-                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
-                                        <button type="button" class="breadcrumb-item" data-measure-segment="@idx" @onclick="async () => await NavigateToPath(capturedPath)">
-                                            @segment
-                                        </button>
-                                    }
-                                    <span class="breadcrumb-separator" data-measure-sep>/</span>
-                                    <button type="button" class="breadcrumb-ellipsis" @onclick="NavigateUpOneFolder" title="Go up one level">
-                                        <span>..</span>
-                                    </button>
-                                    @if (!string.IsNullOrEmpty(secondaryLastSegment.segment))
-                                    {
-                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
-                                        <button type="button" class="breadcrumb-item breadcrumb-current">
-                                            @secondaryLastSegment.segment
-                                        </button>
-                                    }
-                                }
-                                else
-                                {
-                                    @for (int i = 0; i < secondaryPathSegments.Count; i++)
-                                    {
-                                        var segment = secondaryPathSegments[i];
-                                        var capturedPath = segment.path;
-                                        var isLast = (i == secondaryPathSegments.Count - 1);
-                                        <span class="breadcrumb-separator" data-measure-sep>/</span>
-                                        @if (isLast)
-                                        {
-                                            <button type="button" class="breadcrumb-item breadcrumb-current" data-measure-segment="@i">
-                                                @segment.segment
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <button type="button" class="breadcrumb-item" data-measure-segment="@i" @onclick="async () => await NavigateToPath(capturedPath)">
-                                                @segment.segment
-                                            </button>
-                                        }
-                                    }
-                                }
-                            }
+                    <!-- Secondary breadcrumb container (managed by JS) -->
+                    <div class="breadcrumb-nav" data-buffer="secondary" style="visibility: hidden; position: absolute;">
+                        <div class="breadcrumb-content">
+                            <!-- JavaScript will populate this -->
                         </div>
                     </div>
 
-                    <!-- New folder button - OUTSIDE breadcrumb -->
+                    <!-- New folder button -->
                     @if (canCreateFolder)
                     {
                         @if (showCreateInline)
@@ -425,13 +317,13 @@
         min-height: 32px;
     }
 
-    .breadcrumb-nav.hidden {
-        display: none;
-    }
-
-    .breadcrumb-nav.blocked {
+    .breadcrumb-nav[data-buffer="secondary"] {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
         pointer-events: none;
-        opacity: 0.7;
     }
 
     .breadcrumb-content {
@@ -632,7 +524,7 @@
         animation: slideDown 0.2s ease;
     }
 
-    @@keyframes slideDown {
+    @keyframes slideDown {
         from {
             opacity: 0;
             transform: translateY(-5px);
@@ -701,7 +593,7 @@
         max-height: 600px;
     }
 
-    @@keyframes popupAppear {
+    @keyframes popupAppear {
         from {
             opacity: 0;
             transform: translate(-50%, -50%) scale(0.9);
@@ -925,7 +817,7 @@
         animation: spin 1s linear infinite;
     }
 
-    @@keyframes spin {
+    @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
